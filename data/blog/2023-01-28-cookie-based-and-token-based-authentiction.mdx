@@ -1,0 +1,142 @@
+---
+title: 'Cookie-Based và Token-Based Authentication'
+date: '2023-01-28'
+lastmod: '2023-01-28'
+tags: ['security', 'cookie', 'token', 'authentication']
+draft: false
+summary: In security, two concepts that many people often confuse are authentication and authorization. In today's article, I will help you understand the basics of these two concepts and explain how they are defined.
+images: ['/static/img/prompts/structured-blocks-cover.png']
+layout: PostLayout
+---
+
+Trong bài viết trước chúng ta đã tìm hiểu về hai khái niệm Authentication và Authorization. Đây là hai khái niệm khá quan trọng trong an toàn bảo mật thông tin.
+
+![structured blocks](/static/img/posts/cookievstokencover.png)
+
+Bài viết tiếp theo này mình sẽ cùng anh em tìm hiểu và so sánh hai phương thức xác thực thông tin có thể coi là phổ biến nhất hiện nay: Cookie-Based và Token-Based Authentication
+
+À à, bài viết trước ở đây nha cho anh em nào chưa đọc.
+
+Okay, bắt đầu thôi!
+
+<TOCInline toc={props.toc} asDisclosure toHeading={3} />
+
+## 1. Ngược dòng lịch sử
+
+Trước khi trả lời câu hỏi thế nào là cookie-based hay thế nào là token-based anh em cùng mình "ngược dòng lịch sử" một chút.
+
+Trước kia các hệ thống chủ yếu được xây dựng theo cơ chế server-side rendering tức là khi client gửi request tới server thì hệ thống load lại toàn bộ (trừ một vài file ảnh, javascript... được cấu hình hình sẽ được cache lại ở phía trình duyệt)
+
+Nhưng trong những năm trở lại đây với sự phát triển mạnh mẽ của các ứng dụng single page application, web APIs, IOT thì các hệ thống được xây dựng chủ yếu theo cơ chế client-side rendering. Với cơ chế này trang web của chúng ta sẽ không phải tải lại toàn bộ tài nguyên mà chỉ tải lại những gì thay đổi.
+
+Để hiểu hơn về hai cơ chế này mình sẽ cùng anh em tìm hiểu trong một bài viết khác. Vậy hai cơ chế này ảnh hưởng gì tới hai phương thức cookie-based authentication và token-based authentication?
+
+Với cơ chế cũ (server-side rendering) thường sử dụng phương thức xác thực cookie-based còn token-based chính là giải pháp xác thực cho sự ra đời của các xu hướng mình vừa đề cập bên trên.
+
+## 2. Cookie-Based Authentication
+
+Có thể nói cookie-based authentication là phương thức mặc định, được sử dụng từ rất lâu để thực hiện việc xác thực thông tin người dùng.
+
+Cookie-based authentication là STATEFUL. Vậy thế nào là stateful?
+
+Đó là:
+
+- Thông tin dùng để xác thực được lưu trữ ở cả phía server và phía client và thông tin dùng để xác thực ở đây chính là session
+
+- Chính xác hơn thì phía server sẽ lưu tạo một session và lưu trong database sau đó trả về cho phía client một cookie trong đó có thông tin session ID và lưu ở trình duyệt của người dùng.
+
+Cụ thể hơn thì anh em cùng mình tham khảo flow bên dưới:
+
+![spaghetti](/static/img/posts/cookiebasedflow.png)
+
+- [1] Người dùng đăng nhập hệ thống (ví dụ sử dụng username|password)
+
+- [2] Server xác thực thông tin đăng nhập. Nếu sai trả về thông báo lỗi, nếu đúng thì tạo một session và lưu vào database.
+
+- [3] Server sau đó trả về cho client một file text chứa thông tin đăng nhập và sessionID được gọi là cookie. Phía client chính xác hơn là trình duyệt sẽ lưu file này tại local storage.
+
+- [4] Ở những request tiếp theo thì phía client gửi kèm cookie với thông tin sessionID đến server.
+
+- [5] Server sẽ thực hiện xác thực bằng cách so sánh với session được lưu trong database.
+
+- [6] Trả về thông tin cho người dùng nếu việc xác thực thành công và thông báo lỗi nếu xác thực thất bại.
+
+**Notes:**
+
+- Khi người dùng đăng xuất session sẽ bị xóa ở cả phía server và phía client
+
+- Đối với cookie-based authentication anh em lưu ý việc xác thực chỉ có thể thực hiện ở trên cùng một resource (cùng protocol, domain, port). Ví dụ như ảnh 1 bên trên việc xác thực chỉ có thể diễn ra trên địa chỉ https://app.b2a.com. Nếu anh em đăng nhập vào https://app.b2a.com sau đó lấy cookie để request tới địa chỉ https://portal.b2a.com thì chắc chẵn sẽ lỗi.
+
+## 3. Token-Based Authentication
+
+Token-based authentication được phát triển kèm theo sự phát triển của các ứng dụng single page application, web APIs, IoT...
+
+Trên thực tế có nhiều chuẩn để triển khai việc xác thực thông qua token nhưng khi nhắc đến việc xác thực bằng token chúng ta thường nhắc đến JWTs (JSON Web Tokens). Mình sẽ cùng anh em tìm hiểu kỹ hơn về JWTs cũng như cách triển khai chuẩn này trong bài viết tiếp theo.
+
+Tiếp theo, token-based authentication là STATELESS. Vậy thế nào là stateless?
+
+- Khác với stateful sinh ra session và lưu trữ trong database thì stateless ở phía server sẽ tạo ra một token (signed token) và trả về cho client thay vì lưu trữ trên server hay database.
+
+- Token này sẽ được gửi kèm với request và được server xác thực bằng cách giải mã token đó theo một thuật toán nhất định
+
+Cụ thể hơn thì anh em cùng mình tham khảo flow bên dưới:
+
+![spaghetti](/static/img/posts/tokenbasedflow.png)
+
+(1) - Người dùng đăng nhập hệ thống (ví dụ sử dụng username|password)
+
+(2) - Server thực hiện xác thực thông tin đăng nhập. Nếu sai trả về thông báo lỗi, nếu đúng sẽ sinh ra một token bằng một thuật toán nhất định. Lưu ý rằng token này không được lưu lại trên server hay trong database giống như session.
+
+(3) - Token sau đó được trả lại cho phía client và thường sẽ được lưu tại local storage của trình duyệt. Câu hỏi là thế ai đó có được token này thì có truy cập được hệ thống không? Mình sẽ cùng anh em trả lời câu hỏi này ở bài viết tiếp theo về JWTs nhé.
+
+(4) - Đối với mỗi request ở các bước tiếp theo, request sẽ được đính kèm token này vào phần header
+
+(5) - Phía server sẽ sử dụng token đó để giãi mã và xác thực thông tin cũng như ủy quyền cho người dùng có thể truy cập các tài nguyên nào.
+
+(6) - Trả về thông tin cho người dùng nếu việc xác thực thành công và thông báo lỗi nếu xác thực thất bại.
+
+Notes:
+
+- Khi người dùng đăng xuất thì token sẽ được xóa ở phía client và tất nhiên ở phía server sẽ không có tác động nào cả, chỉ khi đăng nhập lại thì sẽ sinh ra một token mới.
+
+- Ngoài ra, như mình đã đề cập ở phần đầu bài viết, các hệ thống hiện nay chủ yếu giao tiếp với nhau qua APIs. Điều này dẫn theo một hệ quả đó là đôi khi các ứng dụng chưa chắc đã thuộc cùng một resource (ví dụ front-end có địa chỉ https://app.b2a.com nhưng hệ thống APIs lại có địa chỉ https://api.b2a.com). Nhưng khi sử dụng token-based authentication thì các hệ thống này vẫn tương tác với nhau bình thường so với sử dụng cookie-based authentication.
+
+## 4. Token-Based Authentication có ưu điểm gì?
+
+Qua nội dung phần 2 và 3 hi vọng anh em đã hình dung được thế nào là cookie-based và token-based authentication cũng như cách mà chúng hoạt động.
+
+Tuy nhiên, ở phần 4 này mình muốn cùng anh em điểm qua một số những ưu điểm của token-based authen để trả lời cho câu hỏi tại sao phương thức này lại phổ biến như vậy.
+
+### 4.1 - Stateless, Scalable và Decoupled
+
+- **Stateless**: Đây có thể nói là ưu điểm lớn nhất của phương thức xác thực này. Tại sao? Vì phía back-end không cần phải lưu trữ thông tin gì cả. Mỗi token được sinh ra đã bao gồm toàn bộ dữ liệu để có thể tự kiểm ra tính hiệu lực của nó và đồng thời bao hàm cả thông tin của người dùng trong đó.
+
+- **Scalable**: Như mình đã phân tích ở trên, việc sử dụng token-based hỗ trợ ngay cả khi các ứng dụng không cùng một resouce (protocol, domain, port). Điều này rất thuận lợi cho việc xây dựng các hệ thống theo mô hình microservice hiện nay.
+
+- **Decoupled**: Trên thực tế, server thực chất cũng không cần phải sinh ra token luôn. Anh em có tin không? Nếu không tin thì hãy Google ngay từ khóa Auth0 - đây là một dịch vụ bên thứ 3 (third party services) có thể giúp chúng ta sinh ra token và phía back-end chỉ cần xác minh xem token đó hợp lệ không là được.
+
+### 4.2 - Cross Domain và CORS (Cross-Origin Resource Sharing)
+
+Nội dung này mình đã đề cập trong phần Notes của các mục 2 và 3 rồi. Cookie-based hoạt động ổn khi các ứng dụng cùng resource hay hiểu nôm nay là cùng domain hoặc là sub-domain.
+
+Ngược lại, token-based lại khắc phục được nhược điểm của việc khác domain hoặc sub-domain. Điều này khiến cho đây là phương thức xác thực thông tin được sử dụng phổ biến trong các hệ thống hiện nay.
+
+Anh em cứ hình dung là với mỗi request tới server thì việc kiểm tra token đều được diễn ra, token lại được gắn theo header nên không phụ thuộc vào resource. Back-end chỉ cần kiểm tra token đó có hiệu lực và hợp lệ hay không.
+
+### 4.3 - JWTs cho phép lưu trữ nhiều dữ liệu
+
+Cookie gần như chỉ lưu trữ sessionID trong khi JWTs cho phép lưu trữ nhiều thông tin hơn dưới dạng một một đối tượng JSON và tất nhiên là dữ liệu này cũng được mã hóa.
+
+### 4.4 - Hiệu năng
+
+Rõ ràng rồi, session được lưu trữ trong database và với mỗi request tới thì back-end sẽ phải "chọc" vào database để lấy ra và so sánh. Nhưng đối với việc sử dụng token thì chỉ cần giải mã là được.
+
+Ngoài ra trong mục 4.3 chúng ta cũng đề cập tới việc token cho phép lưu thêm nhiều thông tin và chúng ta có thể dựa vào thông tin này để tối ưu các truy vấn tới database.
+
+Mình sẽ cùng anh em tìm hiểu và lấy ví dụ chi tiết hơn trong bài viết tiếp theo về JWTs.
+
+## 5. Tham khảo
+
+- [https://dzone.com/articles/cookies-vs-tokens-the-definitive-guide](https://dzone.com/articles/cookies-vs-tokens-the-definitive-guide)
+
+Hẹn gặp lại anh em trong bài viết tiếp theo! Thanks all!

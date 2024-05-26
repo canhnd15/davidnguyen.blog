@@ -1,0 +1,61 @@
+---
+title: 'Authentication vs Authorization'
+date: '2023-01-25'
+lastmod: '2023-01-25'
+tags: ['security', 'authentication', 'authorization']
+draft: false
+summary: In security, two concepts that many people often confuse are authentication and authorization. In today's article, I will help you understand the basics of these two concepts and explain how they are defined.
+images: ['/static/img/prompts/structured-blocks-cover.png']
+layout: PostLayout
+---
+
+Authentication và Authorization là gì và chúng là một hay khác nhau như thế nào? Để biết thêm thông tin chi tiết anh em vui lòng cùng mình tìm hiểu trong bài viết hôm nay nhé.
+
+![structured blocks](/static/img/posts/athenvsauthor.jpg)
+
+<TOCInline toc={props.toc} asDisclosure toHeading={3} />
+
+## 1. Bộ đôi này là gì?
+
+Trước khi đi vào những khái niệm mình sẽ lấy một ví dụ để anh em dễ hình dung hơn. Ở đây anh em đều làm IT cả và ở công ty chắc anh em cũng biết là sẽ có nhiều phòng ban.
+
+Mình ví dụ anh em là nhân viên công ty X làm ở phòng hệ thống là người quản trị server, mạng, thiết bị của công ty. Bây giờ khi đến công ty sẽ có hai bước để anh em bắt đầu làm việc.
+
+- Đầu tiên là xác thực anh em có đúng là nhân viên công ty X không bằng cách chấm vân tay chẳng hạn.
+
+- Sau khi xác thực xong anh em biết là không phải ai cũng được vào phòng server tự do. Để vào được phòng này làm việc anh em sẽ được cấp một thẻ riêng ủy quyền cho anh em là người được phép làm việc trong phòng server.
+
+Okay, mình tin là anh em cũng đã phần nào hình dung ra hai bước trên phần nào tương đồng với Authentication và phần nào tương đồng với Authorization rồi đúng không.
+
+**[Authentication]**
+
+Authentication là quá trình xác thực người dùng là ai (Who a user is?). Ví dụ khi anh em đăng nhập vào một trang web hay ứng dụng nào đó thì đó chính là bước authentication.
+
+**[Authorization]**
+
+Authorization là quá trình ủy quyền người dùng được phép truy cập những tài nguyên nào (What they have access to?). Ví dụ nếu mình đăng nhập với quyền user mình chỉ được xem nội dung bài viết nhưng nếu mình truy cập với quyền admin thì có thể chỉnh sửa hoặc xóa bài viết.
+
+Notes: Authentication và authorization là hai quá trình tuần tự, thông thường authentication là bước trước của authorization.
+
+## 2. So sánh một chút!
+
+Sau đây là một vài so sánh để anh em có thể hình dung được authentication và authorization khác nhau như thế nào.
+
+![spaghetti](/static/img/posts/authenvsauthorcompare.png)
+
+## 3. Bộ đôi này có vai trò gì?
+
+Authentication và authorization là hai khái niệm cơ bản nhưng có vai trò tương đối quan trọng bảo mật và an toàn thông tin.
+
+Trước kia, chúng ta thường chỉ biết đến việc bảo mật thông qua quá trình authentication bằng username|password chẳng hạn.
+
+Nhưng các hệ thống ngày càng phức tạp và đòi hỏi cao hơn, ví dụ cùng là người dùng nhưng lại có những quyền khác nhau và làm sao để phân quyền cũng như quản lý vai trò của họ trong hệ thống.
+
+Và như thế khái niệm authorization ra đời, cho đến nay hầu như các hệ thống để đảm bảo an toàn thông tin ở mức cơ bản thì đều phải có hai quá trình này.
+
+Trong bài viết tiếp theo mình sẽ cùng anh em tìm hiểu về Cookie-Based Auth và Token-Based Auth để hiểu hơn về hai khái niệm này. Hẹn gặp lại anh em trong các bài viết tiếp theo nhé!
+
+## 4. Tham khảo
+
+[^1]: [https://auth0.com/docs/get-started/identity-fundamentals/authentication-and-authorization](https://auth0.com/docs/get-started/identity-fundamentals/authentication-and-authorization).
+[^2]: I believe function calling is currently implemented by OpenAI and Anthropic.
