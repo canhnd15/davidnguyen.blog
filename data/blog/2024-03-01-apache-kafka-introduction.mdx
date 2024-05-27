@@ -1,0 +1,116 @@
+---
+title: '[Apache Kafka][01] - Giới thiệu chung về Apache Kafka'
+date: '2024-03-01'
+lastmod: '2024-03-01'
+tags: ['apache kafka']
+draft: false
+summary: Trong bài viết đầu tiên này mình sẽ cùng các bạn tìm hiểu về sự ra đời của Kafka, những thành phần chính của Kafka ở mức cơ bản cũng như giới thiệu một số usecase cụ thể khi sử dụng Kafka
+images: ['/static/img/prompts/structured-blocks-cover.png']
+layout: PostLayout
+---
+
+<TOCInline toc={props.toc} asDisclosure toHeading={3} />
+
+![structured blocks](/static/img/posts/kafka01-cover.png)
+
+## 1. Kafka là gì?
+
+> Apache Kafka is an **open-source distributed event streaming platform** used by thousands of companies for high-performance data pipelines, streaming analytics, data integration, and mission-critical applications.
+
+source: https://kafka.apache.org/
+
+Có hai keywords trong định nghĩa này đó là distributed và event streaming mà chúng ta cần hiểu.
+
+- **Distributed**: Kafka hoạt động như là các cụm (cluster) của một hoặc nhiều nodes chạy trên nhiều trung tâm dữ liệu (datacenters) khác nhau. Chúng ta có thể phân tán dữ liệu và phân tải qua các node khác nhau của Kafka Cluster. Chính vì đặc điểm phân tán nên Kafka có khả năng mở rộng tốt (scalable) và khả năng chịu lỗi cao (fault-tolerant).
+
+- **Event streaming**: Cơ chế lưu trữ dữ liệu của Kafka là theo luồng các bản ghi liên tục và có thể được xử lý theo nhiều phương thức, định dạnh khác nhau.
+
+Khái niệm lúc nào cũng sẽ khó hiểu, trong các bài viết tiếp theo mình sẽ cùng các bạn bóc tách kỹ hơn các thành phần Kafka. Khi đó các bạn sẽ có một cái nhìn cụ thể hơn.
+
+## 2. Kafka có phải mà một Message Queue không?
+
+- Message Queue là gì?
+
+> A message queue is a form of asynchronous service-to-service communication used in serverless and microservices architectures. Messages are stored on the queue until they are processed and deleted. Each message is processed only once, by a single consumer.
+
+Có thể hiểu đơn giản message queue là một dạng giao tiếp bất đồng bộ giữa các service được sử dụng trong các kiến trúc serverless hoặc microservices. Message được lưu trữ trong queue cho đến khi được xử lý và xoá đi. Mỗi message chỉ được xử lý duy nhất một lần bởi một consumer duy nhất.
+
+Quay lại với câu hỏi Kafka có phải là một message queue không? Câu trả lời chắc chắn là có nhưng Kafka còn làm được nhiều hơn thế. Vậy nên ở đây chính xác Kafka có thể được sử dụng như là một Message Queue nhưng bản chất Kafka có thể làm được nhiều hơn thế.
+
+- Vậy Kafka làm được gì?
+
+Ngoài việc sử dụng như một Message Queue thì Kafka có thể sử dụng làm FIFO queue, Pub/Sub messaging system, real-time streaming platform hoặc thậm chí là một database.
+
+## 3. Tại sao lại là Kafka?
+
+### 3.1. Bài toán dẫn đến sự ra đời của Kafka.
+
+![structured blocks](/static/img/posts/kafka01-problem.png)
+
+Khi một hệ thống hay một doanh nghiệp càng phát triển sẽ kéo theo càng nhiều dịch vụ và các nguồn dữ liệu. Ví dụ một hệ thống ngân hàng sẽ có dữ liệu giao dịch, thông tin khách hàng đến từ nhiều nguồn khác nhau như website, hệ thống chăm sóc khác hàng, ứng dụng banking...
+
+Bài toán đặt ra là làm sao để tích hợp các dữ liệu này vào các hệ thống khác nhau. Trước đây giải pháp là lưu trữ dữ liệu đó vào cơ sở dữ liệu xong các hệ thống sẽ truy xuất dữ liệu từ cùng một cơ sở dữ liệu. Nhưng phương pháp này bộc lộ nhiều nhược điểm khi hệ thống ngày càng có nhiều serivce giao tiếp với nhau theo các chuẩn dữ liệu khác nhau.
+
+Ví dụ mỗi service có thể giao tiếp qua các giao thức khác nhau như: TCP, HTTP, REST, FTP, JDBC... hoặc định dạng dữ liệu cũng khác nhau: Binary, CSV, JSON...
+
+![structured blocks](/static/img/posts/kafka01-image1.png)
+
+Ngoài ra với cách làm truyền thống như vậy, các hệ thống sẽ phải chịu tải cao do một service có thể là tiếp nhận request từ nhiều service.
+
+Và để giải quyết bài toán tích hợp dữ liệu (Data Integration) đó Kafka đã ra đời.
+
+### 3.2. Kafka giải bài toán như thế nào?
+
+Các bạn có thể hình dung Kafka đã giải quyết bài toán tích hợp dữ liệu như thế nào thông qua hình bên dưới.
+
+![structured blocks](/static/img/posts/kafka01-image2.png)
+
+Lúc này Kafka sẽ đóng vai trò như một nền tảng tập trung ở giữa các hệ thống nguồn (source system) và hệ thống đích (target system), phân tán và có thể mở rộng, cho phép nhận, xử lý và phân phối dữ liệu hiệu quả theo thời gian thực.
+
+## 4. Các khái niệm cơ bản trong Kafka.
+
+![structured blocks](/static/img/posts/kafka01-concepts.png)
+
+> Lưu ý: Ở bài viết này mình chỉ dừng lại ở mức khái niệm, trong các bài viết tiếp theo mình sẽ cùng các bạn đi sâu hơn và cấu tạo cũng như bản chât của từng thành phần cấu tạo nên Kafka.
+
+- **Producers**: Là các ứng dụng hoặc các hệ thống nguồn tạo ra dữ liệu, bản ghi và đẩy sang cho Kafka để xử lý.
+
+- **Topics**: Có thể hiểu topics như các thư mục là nơi lưu trữ dữ liệu mà các producers đẩy vào. Các bạn cũng có thể hình dung topics giống như các table trong cơ sở dữ liệu quan hệ (lưu ý là chỉ giống chứ không phải tương tự các bạn nhé).
+  Topic lại bao gồm nhiều partitions cho phép dữ liệu được phân tán và xử lý song song. Nội dung này mình sẽ cùng các bạn tìm hiểu kỹ hơn ở các bài viết sau.
+
+- **Partitions**: Như đã nói ở trên, một topic sẽ được chia thành partitions (chia như thế nào thì bài viết sau mình sẽ giải thích). Partition có khả năng mở rộng theo chiều ngang (tương tụ như một list có thể add nhiều phần tử vào) và xử lý song song cùng với Kafka cluster.
+  Partition đảm bảo dữ liệu trên một topic được trải rộng ra nhiều brokers để tăng thông lượng.
+
+- **Brokers**: Là các Kafka server bên trong mỗi cluster để đảm nhận việc lưu trữ và mở rộng của data. Mỗi broker quản lý một hoặc nhiều partitions và giao tiếp với các producers cũng như consumers.
+
+- **Consumers**: Cũng là các ứng dụng hoặc hệ thống đăng ký vào một hoặc nhiều topics để nhận và xử lý dữ liệu từ các topics đó. Consumer sẽ đọc dữ liệu từ các partitions và xử lý dựa trên những yêu cầu nghiệp vụ cụ thể.
+
+- **Consumer groups**: Là cách để mở rộng việc nhận, xử lý dữ liệu cho các consumer cũng như hỗ trợ việc cân bằng tải. Những consumers trong một nhóm sẽ được thiết kế để nhận, xử lý dữ liệu từ nhiều partitions khác nhau của một topics, đảm bảo quá trình xử lý song song và tăng khả năng chịu lỗi.
+
+- **ZooKeeper**: Ở các phiên bản cũ của Kafka, ZooKeeper được sử dụng cho việc quản lý và bảo trì các metadata của cluster, bao gồm thông tin của broker và consumers group. Tuy Nhiên từ phiên bản Kafka 2.8, ZooKeeper không còn là một phụ thuộc để quản lý thông tin nữa, Kafka sử dụng hệ thống quản lý dữ liệu nội bổ của chính Kafka.
+
+- **Kafka Cluster**: Một Kafka cluster bao gồm nhiều brokers làm việc cùng nhau để đảm nhận xử lý các luồng dữ liệu. Các clusters cung cấp khả năng chịu lỗi, khả năng mở rộng, cho phép dữ liệu được phân phối qua các brokers khác từ đó tăng khả năng đáp ứng của hệ thống.
+
+- **Connectors & Streams**: Kafka connector đơn giản hoá việc tích hợp với các hệ thống dữ liệu bên ngoài, từ đó cho phép nhập và trích xuất dữ liệu hiệu quả. Kafka streams thì cung cấp API cho việc xây dựng các ứng dụng xử lý luồng dữ liệu trên Kafka.
+
+## 5. Một vài usecase cho việc sử dụng Kafka.
+
+- Phân tích dữ liệu thời gian thực (Real-time Data Analytics)
+- Phát hiện gian lận (Fraud Detection)
+- Internet vạn vật (Internet of Things (IoT))
+- Theo dõi, giám sát hệ thông (System Monitoring)
+- Giao tiếp giữa các service trong kiến trúc Microservices (Microservices Communication)
+- Gửi nhận tin nhắn, thông báo (Messaging and Notifications)
+- Event Sourcing
+- Data Pipeline and ETL
+- Clickstream Analysis
+  ...
+
+## 6. Tham khảo
+
+- [https://kafka.apache.org/](https://kafka.apache.org/)
+- [Kafka Basics and Core concepts](https://medium.com/inspiredbrilliance/kafka-basics-and-core-concepts-5fd7a68c3193)
+- [Apache Kafka Guide #1 Introduction](https://medium.com/apache-kafka-from-zero-to-hero/apache-kafka-guide-1-introduction-28142f8574ee)
+- [Apache Kafka: Understanding Key Concepts and Components.](https://www.linkedin.com/pulse/apache-kafka-understanding-key-concepts-components-singh/)
+
+Hẹn gặp lại các bạn trong các bài viết tiếp theo.
