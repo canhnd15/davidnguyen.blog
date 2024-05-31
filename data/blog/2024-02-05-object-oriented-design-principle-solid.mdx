@@ -9,9 +9,11 @@ images: ['/static/img/prompts/structured-blocks-cover.png']
 layout: PostLayout
 ---
 
-Trong bài viết tiếp này mình sẽ cùng các bạn tìm hiểu về 5 nguyên tắc thiết kế hướng đối tượng (Object Oriented Design Principle - S.O.L.I.D). Đây có thể coi là 5 nguyên lý thiết kế hàng đầu trong việc thiết kế các hệ thống hướng đối tượng ở mức độ class và object.
+Trong bài viết này mình sẽ cùng các bạn tìm hiểu về 5 nguyên tắc thiết kế hướng đối tượng (Object Oriented Design Principle - S.O.L.I.D). Đây có thể coi là 5 nguyên lý thiết kế hàng đầu trong việc thiết kế các hệ thống hướng đối tượng ở mức độ class và object.
 
-![Alt text](/static/images/solid-image-1.png 'a thumbnail')
+![Alt text](/static/img/posts/solid-image-1.png 'a thumbnail')
+
+<TOCInline toc={props.toc} asDisclosure toHeading={3} />
 
 ## 1. Single Responsibility Principle (SRP)
 
@@ -129,7 +131,156 @@ Về mặt logic mình có thể chỉ cần viết một class `OrderValidator`
 
 ## 3. Liskov substitution principle (LSP)
 
-> Objects in a program should be replaceable with instances of their subtypes without altering the correctness of that program.
+> The principle defines that objects of a superclass shall be replaceable with objects of its subclasses without breaking the application. That requires the objects of your subclasses to behave in the same way as the objects of your superclass
+
+Nguyên lý này phát biểu các thể hiện (instances) của subclasses (class con) có thể thay thể các thể hiện của supperclass (class cha) mà không làm thay đổi tính đúng đắn và hành vi của class cha đó.
+
+Có một ví dụ kinh điển cho nguyên lý LSP đó là Rectangle and Square, mục đích của ví dụ là chỉ ra sự phá vỡ nguyên tắc LSP khi cho hình vuông (Square) kế thừa hình chữ nhật (Rectangle) và các instance của hình vuông đã thay đổi đặc tính của hình chữ nhật. Nhưng mình thấy ví dụ này không đặc trưng lắm, các bạn có thể google thêm về ví dụ này, bài viết này mình sẽ cùng các bạn xem xét một ví dụ khác trực quan hơn.
+
+### Example
+
+![Alt text](/static/img/posts/solid-image-2.png 'lsp example 1')
+
+Ở ví dụ này mình có một interface là FileService với ba phương thức **File getFile(String name);**, **Boolean updateFile(File file);** và **Boolean deleteFile(File file);**. Ba class **TemporaryFileService**, **ConfigFileService** và **SystemFileService** lần lượt implements interface **FileService**.
+
+Đối với class **TemporaryFileService** thì không có vấn đề gì, class này hoàn toàn có thể thay thế và bảo toàn toàn bộ hành vi (các phương phức) của supperclass là interface **FileService**.
+
+Tuy nhiên, hai class **ConfigFileService** và **SystemFileService** lại vi phạm nguyên lý LSP trong trường này. **ConfigFileService** thì không được xoá file trong khi **SystemFileService** không được xoá và không được cập nhật file.
+
+```java
+interface FileService {
+    File getFile(String name);
+    Boolean updateFile(File file);
+    void deleteFile(File file);
+}
+```
+
+```java
+class TemporaryFileService implements FileService {
+    @Override
+    public File getFile(String name) {
+        // Logic get temporary file.
+    }
+
+    @Override
+    public Boolean updateFile(File file) {
+        // Logic update temporary file.
+    }
+
+    @Override
+    public void deleteFile(File file) {
+        // Logic delete temporary file.
+    }
+}
+```
+
+```java
+class ConfigFileService implements FileService {
+    @Override
+    public File getFile(String name) {
+        // Logic get config file.
+    }
+
+    @Override
+    public Boolean updateFile(File file) {
+        // Logic update temporary file.
+    }
+
+    @Override
+    public void deleteFile(File file) {
+        throw new UnsupportedFileOperationException();
+    }
+}
+```
+
+```java
+class SystemFileService implements FileService {
+    @Override
+    public File getFile(String name) {
+        // Logic get config file.
+    }
+
+    @Override
+    public Boolean updateFile(File file) {
+        throw new UnsupportedFileOperationException();
+    }
+
+    @Override
+    public void deleteFile(File file) {
+        throw new UnsupportedFileOperationException();
+    }
+}
+```
+
+Đây là ví dụ cho việc vi phạm nguyên tắc LSP. Rõ ràng ban đầu chúng ta thiết kế interface **FileService** với mong muốn khi một class nào đó implements interface này nó sẽ triển khai cả ba phương thức nhưng thực tế rõ ràng phát sinh những class không sử dụng toàn bộ các phương thức.
+
+### Refactoring
+
+Vậy làm sao thay đổi thiết kế cho đúng nguyên tắc LSP? Phải code nhiều hơn thui 🥹
+
+Nói đoạn này thì đơn giản nhưng phải làm thực tế trong dự án, tính xa, thiết kế tốt thì mới tránh được việc phải refactoring, không thì chắc đến lúc gặp vấn đề mới quay lại sửa được 😅.
+
+Trong ví dụ của chúng ta, cách đơn giản nhất để tránh vi phạm LSP và throw exception ở các class **ConfigFileService** và **SystemFileService** thì mình sẽ tách interface **FileService** thành nhiều interface nhỏ hơn như sau:
+
+```java
+interface ReadableFileService {
+    File getFile(String name);
+}
+
+interface WritableFileService extends ReadableFileService {
+    Boolean updateFile(File file);
+}
+
+interface DeletableFileService extends ReadableFileService {
+    void deleteFile(File file);
+}
+```
+
+Các class sẽ implements các interface theo đúng nghiệp vụ:
+
+```java
+class TemporaryFileService implements DeletableFileService, WritableFileService {
+    @Override
+    public File getFile(String name) {
+        // Logic to get temporary file.
+    }
+
+    @Override
+    public Boolean updateFile(File file) {
+        // Logic to update temporary file.
+    }
+
+    @Override
+    public void deleteFile(File file) {
+        // Logic to delete temporary file.
+    }
+}
+```
+
+```java
+class ConfigFileService implements WritableFileService {
+    @Override
+    public File getFile(String name) {
+        // Logic to get config file.
+    }
+
+    @Override
+    public Boolean updateFile(File file) {
+        // Logic to update config file.
+    }
+}
+```
+
+```java
+class SystemFileService implements ReadableFileService {
+    @Override
+    public File getFile(String name) {
+        // Logic to get system file.
+    }
+}
+```
+
+Tất nhiên, khi hệ thống phát triển sẽ càng có nhiều bài toán phát sinh, rất khó để có một hoàn hảo ngay từ ban đầu. Chỉ có thiết kế hoàn thiện nhất tại thời điểm đó, vậy nên khi nghiệp vụ thay đổi đôi khi việc cập nhật thiết kế là bình thường.
 
 ## 4. Interface segregation principle (ISP)
 
@@ -281,18 +432,10 @@ public class OrderService {
 }
 ```
 
-Tài liệu tham khảo:
+## 6. Tham khảo.
 
-## 6. Tổng hợp
+- [https://gpcoder.com/4200-cac-nguyen-ly-thiet-ke-huong-doi-tuong/](https://gpcoder.com/4200-cac-nguyen-ly-thiet-ke-huong-doi-tuong/)
+- [https://stackify.com/solid-design-liskov-substitution-principle](https://stackify.com/solid-design-liskov-substitution-principle/)
+- [https://reflectoring.io/lsp-explained/](https://reflectoring.io/lsp-explained/)
 
-Tài liệu tham khảo:
-
-- [JavaScript Event Loop structure](https://jwt.io/introduction)
-- [JavaScript Event Loop structure](https://auth0.com/docs/secure/tokens/json-web-tokens/json-web-token-structure)
-- [JavaScript Event Loop structure](https://auth0.com/resources/ebooks/jwt-handbook/thankyou)
-
-Source code:
-
-- [JavaScript Event Loop structure](https://github.com/canhnd99/jwt-java)
-
-Hẹn gặp lại anh em trong các bài viết tiếp theo nhé! Thanks all!
+Hẹn gặp lại anh em trong các bài viết tiếp theo nhé.
