@@ -1,0 +1,298 @@
+---
+title: '[OOP] - Các nguyên lý thiết kế hướng đối tượng - SOLID'
+date: '2024-02-05'
+lastmod: '2024-02-05'
+tags: ['SOLID', 'OOP']
+draft: false
+summary: Đối với các hệ thống được thiết kế theo mô hình hướng đối tượng, chúng ta có 5 nguyên tắc hàng đầu với mục tiêu tạo ra những thay đổi code ít ảnh hưởng tới các phần còn lại. Nói cách khác, đây là những nguyên tắc thiết kế với mục tiêu đáp ứng và thích nghi với sự thay đổi của hệ thống - rất phù hợp và thục tế cho các hệ thống hiện nay.
+images: ['/static/img/prompts/structured-blocks-cover.png']
+layout: PostLayout
+---
+
+Trong bài viết tiếp này mình sẽ cùng các bạn tìm hiểu về 5 nguyên tắc thiết kế hướng đối tượng (Object Oriented Design Principle - S.O.L.I.D). Đây có thể coi là 5 nguyên lý thiết kế hàng đầu trong việc thiết kế các hệ thống hướng đối tượng ở mức độ class và object.
+
+![Alt text](/static/images/solid-image-1.png 'a thumbnail')
+
+## 1. Single Responsibility Principle (SRP)
+
+> A class should have one and only one reason to change, meaning that a class should have only one job.
+
+Tức là một class chỉ nên giữ một chức năng duy nhất, và chỉ nên sửa đổi class đó vì một lý do duy nhất. Mặc dù về mặt technical chúng ta hoàn toàn có thể sửa đổi, thêm, xoá các phương thức đối với một class nhưng điều đó là không nên.
+
+Ví dụ mình có một class vi phạm nguyên tắc này như sau:
+
+```java
+class OrderService {
+    // Get data from database
+    public List<Order> getOrders() {
+        return orders;
+    }
+
+    // Create a new order
+    public Order createOrder() {
+        return order;
+    }
+
+    // Validate an order
+    public boolean isValidOrder() {
+        return true;
+    }
+
+    // Send notification
+    public void sendNoti() {
+
+    }
+
+    // Logging
+    public void logging() {
+        System.out.println("...");
+    }
+
+    // Parsing
+    public String parseOrderToJson(Order order) {
+        return null;
+    }
+}
+```
+
+Chúng ta thấy rằng class này thực hiện nhiều phương thức mà lẽ ra không nên là "trách nhiệm" của class đó. Ví dụ, các phương thức như `sendNoti()`,`logging()` ,`isValidOrder()` hay `parseOrderToJson()` đều có thể thực hiện bởi một class khác. Việc viết tất cả các phương thức vào một class như vậy sẽ dẫn đến một hệ quả đó là sau này nếu nghiệp vụ của các phương thức đó thay đổi sẽ kéo theo class `OrderService` thay đổi theo và ngày càng phình to ra.
+
+Để bảo đảm class `OrderService` theo đúng chuẩn SRP thì chúng ta có thể tách các phương thức bên trên ra các class riêng biệt ví dụ như:
+
+`OrderRepository` để thực hiện thao tác với database (`getOrders()` và `createOrder()`).
+
+`OrderValidator` để thực hiện các thao tác kiểm tra order.
+
+`NotificationService` để gửi thông báo.
+
+`ServiceLogger` để ghi log.
+
+`JsonParser` để chuyển đổi từ object sang json.
+
+## 2. Open-Closed principle (OCP)
+
+> Objects or entities should be open for extension, but closed for modification.
+
+Tức là chúng ta có thể mở rộng một class nhưng việc sửa đổi bên trong class đó là không nên.
+
+Nghe có vẻ mẫu thuẫn với nguyên lý đầu tiên nhưng việc mở rộng ở đây không phải là thêm hoặc sửa các phương thức có sẵn của class mà tận dụng khả năng kế thừa của lập trình hướng đối tượng để tạo ra các class mới kế thừa từ class cũ sau đó chúng ta sẽ thêm các bổ sung vào class mới này.
+
+Đến đây nhiều bạn sẽ nghĩ còn tuỳ thuộc vào việc sửa đổi ảnh hưởng như thế nào, trong trường hợp chỉ sửa đổi một chút ở một hàm nào đó chắc sẽ chẳng ảnh hưởng gì, và cũng chẳng cần test lại vậy thì cần gì phải tạo thêm class mới cho phức tạp. Mình vừa đồng ý, vừa không đồng ý với quan điểm này vì đúng là không phải lúc nào cần thay đổi là cũng tạo class mới nhưng bất kể thay đổi nào đối với phương thức nào chúng ta cũng nên test lại để tránh các lỗi tiềm ẩn.
+
+Quay lại với ví dụ chúng ta sẽ dễ hình dung hơn về nguyên lý này. Vẫn là `OrderSerice`, áp dụng nguyên lý SRP mình sẽ tạo thêm một interface là `OrderValidator`:
+
+```java
+class OrderService {
+    private OrderValidator validator;
+
+    public OrderService(OrderValidator validator) {
+        this.validator = validator;
+    }
+
+    public Order createOrder() {
+        if (this.validator.isValidOrder()) {
+            // create an order
+        } else {
+            // invalid order
+        }
+    }
+}
+```
+
+```java
+interface OrderValidator {
+    boolean isValidOrder();
+}
+```
+
+Bây giờ, khi muốn valid thông tin order trước khi lưu trữ mình có thể triển khai nhiều cách thức validation khác nhau dựa trên interface `OrderValidator` như sau:
+
+```java
+class OrderServiceValidator implements OrderValidator {
+    @Override
+    public boolean isValidOrder() {
+        // validation logic ...
+        return true;
+    }
+}
+
+class OrderRepositoryValidator implements OrderValidator {
+    @Override
+    public boolean isValidOrder() {
+        // validation logic ...
+        return false;
+    }
+}
+```
+
+Về mặt logic mình có thể chỉ cần viết một class `OrderValidator` duy nhất và triển khai toàn bộ các logic validate thông tin order ở trong đó. Nhưng nếu làm vậy, mỗi lần thay đổi logic nghiệp vụ mình sẽ phải vào `OrderService` class để sửa đổi, việc sửa đổi nhiều lần dễ dẫn đến những lỗi tiềm ẩn nếu class đó không được test lại.
+
+## 3. Liskov substitution principle (LSP)
+
+> Objects in a program should be replaceable with instances of their subtypes without altering the correctness of that program.
+
+## 4. Interface segregation principle (ISP)
+
+> Many client-specific interfaces are better than one general-purpose interface.
+
+Nguyên lý ngày khá là dễ hiểu, giống như việc các bạn viết một function dài quá thì chia thành nhiều function nhỏ hơn với những chức năng cụ thể hơn. Đối với nguyên lý ISP này có thể hiểu là nên tách một interface với nhiều phương thức chung thành những interface nhỏ với chức năng cụ thể.
+
+Tại sao lại phải tách? Các bạn tưởng tượng bây giờ có một interface với khoảng 100 phương thức, nếu có một class triển khai (implement) interface này thì class đó sẽ phải ghi đè (override) 100 phương thức. Trong khi chưa chắc class đã sử dụng toàn bộ 100 phương thức của interface, vì vậy tách ra thành nhiều interface càng cụ thể càng tốt.
+
+Ví dụ:
+
+```java
+interface Repository<T, ID> {
+    Iterable<T> findAll();
+
+    T findOne(ID id);
+
+    T save(T entity);
+
+    void update(T entity);
+
+    void delete(ID id);
+
+    Page<T> findAll(Pageable pageable);
+
+    Iterable<T> findAll(Sort sort);
+}
+```
+
+Trường hợp này, interface `Repository` đang có 7 phương thức với các chức năng lần lượt là: lấy toàn bộ kết quả từ database, tìm kiếm theo Id, lưu, cập nhật, xoá, lấy kết quả phân trang, lấy kết quả sắp xếp. Có thể thấy hai phương thức cuối cùng `Page<T> findAll(Pageable pageable);`, `Iterable<T> findAll(Sort sort);` có thể tách riêng vì có những chức năng chúng ta chỉ muốn lấy tất cả bản ghi, nếu implement của hai phương thức này sẽ dẫn đến dư thừa code.
+
+```java
+interface CrudRepository<T, ID> {
+    Iterable<T> findAll();
+
+    T findOne(ID id);
+
+    T save(T entity);
+
+    void update(T entity);
+
+    void delete(ID id);
+}
+
+interface PagingAndSortingRepository<T, ID> extends CrudRepository<T, ID> {
+
+    Page<T> findAll(Pageable pageable);
+
+    Iterable<T> findAll(Sort sort);
+}
+```
+
+Ngoài ra, một trường hợp cũng rất thường gặp trong các dự án đó là việc tổ chức code đối với các class Util, đây là các class mà chúng ta sẽ vô tình hay cố ỷ triển khai rất nhiều những phương thức dùng chung cho cả dự án ví dụ như: `checkValidInputDate()`, `isValidPhoneNumber()`, `objectToJsonMapper()`, `checkFormatNumber()`. Nếu các bạn để ý, mỗi phương thức này đều có thể gom vào những class riêng chỉ với một vài phương thức cho mỗi class.
+
+Ví dụ:
+
+```java
+interface CommonUtil {
+    void commonMethod1();
+    void commonMethod2();
+}
+
+interface DateTimeUtil extends CommonUtil {
+    boolean isValidInputDate(String inputDate);
+}
+
+interface StringUtil extends CommonUtil {
+    boolean checkUserName(String userName);
+    String generateRandomString(int length);
+}
+
+interface NumberUtil extends CommonUtil {
+    boolean isValidMoney(Long money);
+    String formatMoney(Long money);
+}
+```
+
+Thay vì viết toàn bộ vào một class `CommonUtil` chúng ta có thể chia ra nhiều class, interface khác nhau để mỗi class sẽ chỉ làm một việc cụ thể. Tất nhiên với cách làm này ban đầu có thể sẽ mất công tổ chức các interface, class một chút nhưng về sau code sẽ rất rõ ràng, khi muốn sửa đổi chúng ta cũng có thể biết rõ phải sửa ở đâu.
+
+## 5. Dependency Inversion Principle (DIP)
+
+> 1. High-level modules should not depend on low-level modules. Both should depend on abstractions.
+> 2. Abstractions should not depend upon details. Details should depend upon abstractions.
+
+Với nguyên lý này, chúng ta có thể hiểu như sau:
+
+1. Các modules (interfaces, classes) cấp cao không nên phụ thuộc vào các modules cấp thấp mà cả hai nên phụ thuộc vào các đối tượng trìu tượng (interface, abstract class).
+2. Các đối tượng trừu tượng (interface, abstract class) không nên phụ thuộc vào triển khai của nó mà các triển khai nên phụ thuộc vào các đối tương trừu tượng.
+
+Với các hệ thống hiện nay thường xây dựng theo mô hình nhiều tier:
+
+1. User Interface (giao diện người dùng)
+
+2. Business Logic Layer (tầng logic nghiệp vụ)
+
+3. Data Access Layer (tầng giao tiếp với database)
+
+4. Database
+
+Nếu không áp dụng DIP các classes, interfaces của tầng (1) sẽ phụ thuộc tầng (2) và tầng (2) phụ thuộc tầng (3). Điều này kéo theo hệ quả là khi các tầng dưới xảy ra thay đổi các tầng trên cũng thay đổi theo, các bạn hãy tưởng tượng có một thay đổi ở tầng Business Logic và khiến cho tầng User Interface thay đổi theo thì sẽ như thế nào. Chắc chắn không ai muốn như vậy cả, mọi thay đổi ở các tầng dưới không nên ảnh hưởng đến tầng trên.
+
+Lý thuyết hơi khó hiểu, để mình lấy ví dụ:
+
+```
+interface DBConnection {
+    void connect();
+}
+
+class OracleConnection implements DBConnection {
+    @Override
+    public void connect() {
+        System.out.println("Oracle connected");
+    }
+}
+
+class MySQLConnection implements DBConnection {
+    @Override
+    public void connect() {
+        System.out.println("MySQL connected");
+    }
+}
+
+class PostgreSQLConnection implements DBConnection {
+    @Override
+    public void connect() {
+        System.out.println("PostgreSQL connected");
+    }
+}
+
+class DbConnectionFactory {
+    private final DBConnection dbConnection;
+
+    public DbConnectionFactory(DBConnection dbConnection) {
+        this.dbConnection = dbConnection;
+        this.dbConnection.connect();
+    }
+
+    public DBConnection getConnection() {
+        return this.dbConnection;
+    }
+}
+
+public class OrderService {
+
+    public static void main(String[] args) {
+        DBConnection conn = new OracleConnection();
+        DbConnectionFactory factory = new DbConnectionFactory(conn);
+    }
+}
+```
+
+Tài liệu tham khảo:
+
+## 6. Tổng hợp
+
+Tài liệu tham khảo:
+
+- [JavaScript Event Loop structure](https://jwt.io/introduction)
+- [JavaScript Event Loop structure](https://auth0.com/docs/secure/tokens/json-web-tokens/json-web-token-structure)
+- [JavaScript Event Loop structure](https://auth0.com/resources/ebooks/jwt-handbook/thankyou)
+
+Source code:
+
+- [JavaScript Event Loop structure](https://github.com/canhnd99/jwt-java)
+
+Hẹn gặp lại anh em trong các bài viết tiếp theo nhé! Thanks all!

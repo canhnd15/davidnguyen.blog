@@ -15,7 +15,7 @@ const Header = () => {
           <div className="flex items-center justify-between">
             <div className="mr-3 flex flex-col items-center justify-center">
               <h1 className="text-3xl font-bold">David Nguyen</h1>
-              <h3 className="font-mono">{`< A minimalist software engineer />`}</h3>
+              {/* <h3 className="font-mono">{`< A minimalist software engineer />`}</h3> */}
             </div>
           </div>
         </Link>
