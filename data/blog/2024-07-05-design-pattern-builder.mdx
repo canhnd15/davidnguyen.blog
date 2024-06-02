@@ -1,0 +1,468 @@
+---
+title: '[Design Pattern] - Builder'
+date: '2024-02-10'
+lastmod: '2024-02-10'
+tags: ['Design Pattern']
+draft: false
+summary: Tiếp tục seri Design Patterns hôm nay mình sẽ cùng các bạn tìm hiểu về một Creational Design Pattern nữa cũng rất thú vị đó là Builder Pattern.
+images: ['/static/img/prompts/structured-blocks-cover.png']
+layout: PostLayout
+---
+
+Tiếp tục seri Design Patterns hôm nay mình sẽ cùng các bạn tìm hiểu về một Creational Design Pattern nữa cũng rất thú vị đó là Builder Pattern.
+
+![Alt text](/static/img/posts/builder-image-cover.png 'a thumbnail')
+
+Ngoài ra nếu các bạn nào quan tâm thì có thể tham khảo các bài viết khác cùng chủ đề Design Patterns được mình tổng hợp tại đây nhé.!
+
+Bây giờ thì cùng bắt đầu bài viết hôm nay nào!
+
+<TOCInline toc={props.toc} asDisclosure toHeading={3} />
+
+## 1. Đặt vấn đề
+
+Hãy tưởng tượng trong cuộc sống có rất nhiều thứ mà khi các bạn muốn tạo ra nó các bạn có thể lắp ráp, xây dựng từ nhiều thành phần (bộ phận) khác nhau.
+
+Một vài trong số những thành phần (bộ phận) đó là bắt buộc nhưng một vài thì lại không! Và câu hỏi là làm sao để tạo ra được đối tượng mong muốn chỉ với những gì các bạn cần?
+
+Đó cũng là tư tưởng của Builder Pattern và mình sẽ lấy một ví dụ hết sức thực tế chính là ngôi nhà của chúng ta.
+
+Vậy ngôi nhà cần những gì? Mình không phải đại gia nên chỉ cần ngôi nhà cơ bản, có mái nhà tránh mưa nắng, có sân, có tường, có đủ phòng để ngủ, có cửa sổ cho thoáng mát (nói chung là những thành phần cơ bản nhất của ngôi nhà). Nhưng các bạn "rich kid" lại đòi cả bể bơi, garage ôtô hay thậm chí là sân golf...
+
+Nếu đưa ý tưởng này vào code và theo tư duy thuần túy của việc khởi tạo đối tượng là dùng constructor thì chúng ta sẽ làm như sau:
+
+```java
+public class House {
+    private int windows;
+    private int doors;
+    private int walls;
+    private String roof;
+    private String yard;
+    private String swimmingPool;
+    private String garage;
+
+    public House(int windows, int doors, int walls, String roof, String yard,
+                 String swimmingPool, String garage) {
+        this.windows = windows;
+        this.doors = doors;
+        this.walls = walls;
+        this.roof = roof;
+        this.yard = yard;
+        this.swimmingPool = swimmingPool;
+        this.garage = garage;
+    }
+}
+```
+
+Và đây là cách chúng ta tạo ra các đối tượng tương ứng.
+
+```java
+/* House for poor people include 2 windows, 1 doors, 4 walls and a roof which is made from bamboo */
+ House poorGuysHouse = new House(2, 1, 4, "made from bamboo", null, null, null);
+
+ /* House for common people include 4 windows, 1 doors, 4 walls, a roof which is made from steel and a yard for 30 square meters*/
+ House commonGuysHouse = new House(4, 1, 4, "made from steel", "30 square meters", null, null);
+
+ /* House for rich people include 8 windows, 2 doors, 4 walls, roof which is made from steel,
+    yard with 300 square meter, swimming pool with 40 square meters and a garage with  50 square meters */
+ House richGuysHouse = new House(8, 2, 4, "made from steel", "300 square meters", "40 square meters", "50 square meters");
+```
+
+Chỉ là một ví dụ vui thôi nhưng mình tin chắc là nhiều bạn vẫn hay khởi tạo đối tượng như thế này. Hoàn toàn không có gì là sai cả, thậm chí đây là cách tiêu chuẩn cho việc khởi tạo một đối tượng.
+
+Nhưng việc khởi tạo đối tượng như vậy có khá nhiều nhược điểm mà mình sẽ cùng các bạn phân tích ngay sau đây.
+
+## 2. Phân tích
+
+Bây giờ hãy nói về những nhược điểm khi chúng ta khởi tạo đối tượng bằng cách sử dụng constructor như ở phần 1 mình vừa đề cập.
+
+- **Không rõ ràng**
+
+Ở đây các bạn có thể thấy những tham số mình truyền vào phải đúng theo thứ tự được định nghĩa trong constructor. Nếu sai thứ tự sẽ dẫn đến việc khởi tạo đối tượng không đúng mong muốn hoặc không khởi tạo được.
+
+Hai nữa, khi sử dụng constructor như này các bạn cũng không biết được tên tham số cần truyền là gì, hoàn toàn phụ thuộc vào thứ tự tham số đó.
+
+- **Truyền các tham số không cần thiết**
+
+Các bạn có thể thấy 3 đối tượng `poorGuysHouse`, `commonGuysHouse`, `richGuysHouse` đều sử dụng chung một constructor để khởi tạo. Đối với `richGuysHouse` chúng ta cần đủ tham số, nhưng với `commonGuysHouse` và `poorGuysHouse` đâu cần đủ nhưng vẫn phải truyền null cho các tham số không cần thiết.
+
+Tuy nhiên chúng ta có thể khắc phục nhược điểm này bằng cách tạo các constructor tương ứng như sau:
+
+```java
+public class House {
+    private int windows;
+    private int doors;
+    private int walls;
+    private String roof;
+    private String yard;
+    private String swimmingPool;
+    private String garage;
+
+    public House(int windows, int doors, int walls, String roof, String yard,
+                 String swimmingPool, String garage) {
+        this.windows = windows;
+        this.doors = doors;
+        this.walls = walls;
+        this.roof = roof;
+        this.yard = yard;
+        this.swimmingPool = swimmingPool;
+        this.garage = garage;
+    }
+
+    public House(int windows, int doors, int walls, String roof) {
+        this.windows = windows;
+        this.doors = doors;
+        this.walls = walls;
+        this.roof = roof;
+    }
+
+    public House(int windows, int doors, int walls, String roof, String yard) {
+        this.windows = windows;
+        this.doors = doors;
+        this.walls = walls;
+        this.roof = roof;
+        this.yard = yard;
+    }
+}
+```
+
+Nhưng xét cho cùng cũng chỉ là giải pháp tạm thời vì nếu sinh ra thêm vài đối tượng với nhiều tham số hơn nữa chúng ta lại phải tạo các constructor tương ứng.
+
+Chưa kể nếu đối tượng có quá nhiều thuộc tính thì việc khởi tạo thông qua constructor thực sự là sẽ rất rất cồng kềnh.
+
+- **Không tạo được các Immutable Object**
+
+Thay vì sử dụng constructor chúng ta có thể dụng các hàm `setter()` để gán giá trị cho các biến như bên dưới.
+
+```java
+House poorGuysHouse = new House();
+poorGuysHouse.setWindows(2);
+poorGuysHouse.setDoors(1);
+
+System.out.println("Walls: " + poorGuysHouse.getWalls());
+
+poorGuysHouse.setWalls(4);
+poorGuysHouse.setRoof("made from bamboo");
+
+System.out.println("Walls: " + poorGuysHouse.getWalls());
+```
+
+Rõ ràng, đối tượng của chúng ta lúc này là mutable vì nó không nhất quán cho đến khi toàn bộ các thuộc tính được gán giá trị rõ ràng.
+
+Nói cách khác nếu sử dụng các hàm `setter()` chúng ta sẽ giải quyết được vấn đề phải truyền các tham số không cần thiết nhưng lại không đạt được mong muốn về inmutable object.
+
+Và để giải quyết toàn bộ những vấn đề trên chúng ta có thể áp dụng Builder Pattern.
+
+## 3. Builder Pattern
+
+> Builder is a creational design pattern that lets you construct complex objects step by step. The pattern allows you to produce different types and representations of an object using the same construction code.
+
+Nguồn: [https://refactoring.guru/](https://refactoring.guru/)
+
+Hiểu đơn giản,
+
+- Build Pattern giúp chúng ta khởi tạo các đối tượng phức tạp từng bước một.
+
+- Builder Pattern cũng cho phép chúng ta tạo ra nhiều instances của một class bằng cách sử dụng chung một hàm khởi tạo.
+
+**Vậy cài đặt Builder Pattern như thế nào?**
+
+Quay lại với ví dụ ban đầu, mình có vẽ một diagram về cách triển khai Builder Pattern cho ví dụ này.
+
+![Alt text](/static/img/posts/builder-image-1.png 'diagram')
+
+Việc cài đặt Builder Pattern không quá phức tạp, thay vì sử dụng trực tiếp constructor của class chúng ta đẩy việc đó sang cho một lớp gọi là "builder".
+
+Lớp này (HouseBuilderImpl) có trách nhiệm khởi tạo từng thuộc tính và cuối cùng sẽ trả về đối tượng mà chúng ta mong muốn (House) với các thuộc tính phù hợp đã được khởi tạo.
+
+Trong mục 5 mình sẽ trình bày với các bạn cách cài đặt khác còn bây giờ cùng mình triển khai Builder Pattern theo diagram bên trên.
+
+## 4. Cài đặt Builder Pattern
+
+Đầu tiên chúng ta định nghĩa class `House`.
+
+```Java
+public class House {
+    private int windows;
+    private int doors;
+    private int walls;
+    private String roof;
+    private String yard;
+    private String swimmingPool;
+    private String garage;
+
+    public House(int windows, int doors, int walls, String roof, String yard, String swimmingPool, String garage) {
+        this.windows = windows;
+        this.doors = doors;
+        this.walls = walls;
+        this.roof = roof;
+        this.yard = yard;
+        this.swimmingPool = swimmingPool;
+        this.garage = garage;
+    }
+
+    @Override
+    public String toString() {
+        return  "windows=" + windows +
+                ", doors=" + doors +
+                ", walls=" + walls +
+                ", roof='" + roof + '\'' +
+                ", yard='" + yard + '\'' +
+                ", swimmingPool='" + swimmingPool + '\'' +
+                ", garage='" + garage + '\'';
+    }
+}
+```
+
+**Lưu ý**: Là ví dụ đơn giản nên mình sử dụng các thuộc tính với kiểu dữ liệu nguyên thủy, trên thực tế đối tượng của chúng ta có thể bao gồm các thuộc tính là các đối tượng khác phức tạp hơn. Ngoài ra, mình có ghi đè phương thức`toString()` để in ra thông tin đối tượng.
+
+Tiếp theo mình định nghĩa một interface là `HouseBuilder`. Interface này sẽ chứa các phương thức giúp chúng ta định nghĩa từng thuộc tính của đối tượng.
+
+```java
+public interface HouseBuilder {
+    HouseBuilder windows(int windows);
+
+    HouseBuilder doors(int doors);
+
+    HouseBuilder walls();
+
+    HouseBuilder roof(String roof);
+
+    HouseBuilder yard(String yard);
+
+    HouseBuilder swimmingPool(String swimmingPool);
+
+    HouseBuilder garage(String garage);
+
+    House build();
+}
+```
+
+Lớp `HouseBuilderImpl` sẽ triển khai interface `HouseBuilder` và thực thi logic cho các hàm đã được định nghĩa.
+
+```java
+public class HouseBuilderImpl implements HouseBuilder {
+    private int windows;
+    private int doors;
+    private int walls;
+    private String roof;
+    private String yard;
+    private String swimmingPool;
+    private String garage;
+
+    @Override
+    public HouseBuilder windows(int windows) {
+        this.windows = windows;
+        return this;
+    }
+
+    @Override
+    public HouseBuilder doors(int doors) {
+        this.doors = doors;
+        return this;
+    }
+
+    @Override
+    public HouseBuilderImpl walls() {
+        this.walls = 4;
+        return this;
+    }
+
+    @Override
+    public HouseBuilder roof(String roof) {
+        this.roof = roof;
+        return this;
+    }
+
+    @Override
+    public HouseBuilder yard(String yard) {
+        this.yard = yard;
+        return this;
+    }
+
+    @Override
+    public HouseBuilder swimmingPool(String swimmingPool) {
+        this.swimmingPool = swimmingPool;
+        return this;
+    }
+
+    @Override
+    public HouseBuilder garage(String garage) {
+        this.garage = garage;
+        return this;
+    }
+
+    @Override
+    public House build() {
+        return new House(windows, doors, walls, roof, yard, swimmingPool, garage);
+    }
+}
+```
+
+Sau đây là cách client tương tác để tạo ra các đối tượng tương ứng.
+
+```java
+public class App {
+    public static void main(String[] args) {
+        /* House for poor people include 2 windows, 1 doors, 4 walls and a roof which is made from bamboo */
+        House poorGuysHouse = new HouseBuilderImpl()
+                .windows(2)
+                .doors(1)
+                .walls()
+                .roof("made from bamboo")
+                .build();
+        System.out.printf("%s%s%n", "POOR GUYS'S HOUSE: ", poorGuysHouse.toString());
+
+        /* House for common people include 4 windows, 1 doors, 4 walls, a roof which is made from steel and a yard for 30 square meters*/
+        House commonGuysHouse = new HouseBuilderImpl()
+                .windows(4)
+                .doors(1)
+                .walls()
+                .roof("made from steel")
+                .yard("30 square meters")
+                .build();
+        System.out.printf("%s%s%n", "COMMON GUYS'S HOUSE: ", commonGuysHouse.toString());
+
+        /* House for rich people include 8 windows, 2 doors, 4 walls, roof which is made from steel,
+           yard with 300 square meter, swimming pool with 40 square meter and a garage with  50 square meter */
+        House richGuysHouse = new HouseBuilderImpl()
+                .windows(8)
+                .doors(4)
+                .walls()
+                .roof("made from steel")
+                .yard("300 square meters")
+                .swimmingPool("40 square meters")
+                .garage("50 square meters")
+                .build();
+        System.out.printf("%s%s%n", "RICH GUYS'S HOUSE: ", richGuysHouse.toString());
+    }
+}
+```
+
+Kết quả sau khi chạy chương trình:
+
+```logs
+POOR GUY'S HOUSE: windows=2, doors=1, walls=4, roof='made from bamboo', yard='null', swimmingPool='null', garage='null'
+COMMON GUY'S HOUSE: windows=4, doors=1, walls=4, roof='made from steel', yard='30 square meters', swimmingPool='null', garage='null'
+RICH GUY'S HOUSE: windows=8, doors=4, walls=4, roof='made from steel', yard='300 square meters', swimmingPool
+```
+
+**Nhận xét:**
+
+- Đầu tiên là về tính rõ ràng, các bạn có thể thấy khi cần tạo ra đối tượng nào mình sẽ sử dụng các thuộc tính phù hợp bằng cách gọi đến tên các hàm khởi tạo giá trị cho thuộc tính đó bên trong lớp HouseBuilderImpl
+
+- Bằng cách này mình cũng không cần phải truyền các thuộc tính không cần thiết và gán giá trị null cho thuộc tính đó. Nếu thuộc tính đó không sử dụng mình chỉ đơn giản không gọi hàm khởi tạo trong lớp HouseBuilderImpl là xong.
+
+Đó, về cơ bản Builder Pattern đã giúp chúng ta giải quyết được hai trong số những vấn đề được đặt ra ở phần 2 của bài viết.
+
+Vậy các vấn đề còn lại thì sao, cùng mình qua phần 5 để khai thác vấn đề sâu hơn.
+
+## 5. Mở rộng
+
+Như mình đã đề cập, việc sử dụng constructor theo cách thông thường sẽ không giúp chúng ta đạt được mục đích immutable object. Và với cách triển khai mình giới thiệu ở phần 4 cũng không làm được điều đó.
+
+**Vậy làm sao để áp dụng Builder Pattern và đạt được mục đích về immutable object?**
+
+```java
+public class House {
+    private int windows;
+    private int doors;
+    private int walls;
+    private String roof;
+    private String yard;
+    private String swimmingPool;
+    private String garage;
+
+    public static class Builder {
+        // required parameters
+        private final int windows;
+        private final int doors;
+        private final int walls;
+        private final String roof;
+
+        // optional parameters
+        private String yard;
+        private String swimmingPool;
+        private String garage;
+
+        public Builder(int windows, int doors, int walls, String roof) {
+            this.windows = windows;
+            this.doors = doors;
+            this.walls = walls;
+            this.roof = roof;
+        }
+
+        Builder yard(String val) {
+            yard = val;
+            return this;
+        }
+
+        Builder swimmingPool(String val) {
+            swimmingPool = val;
+            return this;
+        }
+
+        Builder garage(String val) {
+            garage = val;
+            return this;
+        }
+
+        public House build() {
+            return new House(this);
+        }
+    }
+
+    private House(Builder builder) {
+        windows = builder.windows;
+        doors = builder.doors;
+        walls = builder.walls;
+        roof = builder.roof;
+        yard = builder.yard;
+        swimmingPool = builder.swimmingPool;
+        garage = builder.garage;
+    }
+
+    @Override
+    public String toString() {
+        return  "windows=" + windows +
+                ", doors=" + doors +
+                ", walls=" + walls +
+                ", roof='" + roof + '\'' +
+                ", yard='" + yard + '\'' +
+                ", swimmingPool='" + swimmingPool + '\'' +
+                ", garage='" + garage + '\'';
+    }
+```
+
+Phía client sẽ tương tác như sau:
+
+```java
+House richGuysHouse = new House
+        .Builder(2, 1, 4, "made from steel")
+        .yard("300 square meters")
+        .swimmingPool("40 square meters")
+        .garage("50 square meters")
+        .build();
+
+System.out.println(richGuysHouse);
+```
+
+Đầu tiên các bạn để ý cho mình class `House` chỉ có một constructor duy nhất nhưng lại ở chế độ private. Điều này giúp ngăn việc khởi tạo đối tượng từ bên ngoài class và để khởi tạo được đối tượng chúng ta chỉ có một cách đó là thông qua class `Builder`.
+
+`Builder` là một static nested class có đầy đủ các thuộc tính của class `House` và nó có nhiệm vụ khởi tạo một immutabe object (trong trường hợp này chính là đối tượng richGuysHouse).
+
+Nói cách khác chúng ta chỉ có thể tạo ra một đối tưởng hoàn chỉnh sau khi gọi hàm `build()` và trạng thái của đối tượng sẽ không bị thay đổi trong suốt quá trình khởi tạo đó.
+
+## 6. Nhược điểm của Builder Pattern
+
+- Nhược điểm chung của việc áp dụng các design patterns chính là việc tăng số lượng file dẫn đến tăng kích thước mã nguồn (tất nhiên không phải lúc nào tăng số lượng file cũng dẫn đến tăng kích thước mã nguồn) nhưng thường sẽ là như vậy.
+
+- Ngoài ra như các bạn thấy toàn bộ các thuộc tính đều phải được khai báo ở class và cả bên trong builder. Điều này dẫn đến việc trùng lặp code nhưng xét cho cùng thì đó cũng không phải là vấn đề quá lớn.
+
+## 7. Tham khảo
+
+- [https://refactoring.guru/design-patterns/builder](https://refactoring.guru/design-patterns/builder)
+- [https://sourcemaking.com/design_patterns/builder](https://sourcemaking.com/design_patterns/builder)
+- [https://gpcoder.com/4434-huong-dan-java-design-pattern-builder/](https://gpcoder.com/4434-huong-dan-java-design-pattern-builder/)
+
+Hẹn gặp lại các bạn trong các bài viết tiếp theo.

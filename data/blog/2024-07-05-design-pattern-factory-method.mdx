@@ -1,0 +1,395 @@
+---
+title: '[Design Pattern] - Factory Method'
+date: '2024-02-08'
+lastmod: '2024-03-08'
+tags: ['Design Pattern']
+draft: false
+summary: Factory Method là một design pattern trong nhóm Creational Pattern. Pattern này cung cấp các interface cho việc tạo ra các objects trong supperclass, nhưng cho phép các subclasses thay đổi kiểu object sẽ được tạo ra.
+images: ['/static/img/prompts/structured-blocks-cover.png']
+layout: PostLayout
+---
+
+Bài viết hôm nay mình sẽ cùng các bạn tìm hiểu về Factory Method, một design pattern thuộc nhóm Creational Pattern. Cùng theo dõi đến cuối bài viết để thấy pattern này lợi hại và hữu ích như thế nào.
+
+![Alt text](/static/img/posts/factory-method-01.png 'a thumbnail')
+
+<TOCInline toc={props.toc} asDisclosure toHeading={3} />
+
+## 1. Đặt vấn đề
+
+Trước khi đi vào chi tiết có một ví dụ mà mình nghĩ các bạn cũng gặp rất nhiều rồi đó là việc chúng ta đi rút tiền ở cây ATM.
+
+Sau khi nhập mã PIN màn hình sẽ hiển thị các nút chọn (tùy loại cây ATM sẽ là màn cảm ứng hoặc nút bấm). Các nút này có thể thể là nút Nạp tiền, Rút tiền, Chuyển tiền...
+
+Bây giờ để đơn giản mình giả sử các bạn muốn viết một chương trình để thực hiện việc Nạp tiền và Rút tiền tại cây ATM. Chương trình này sẽ nhận vào số tiền muốn rút (hoặc muốn nạp) và trả về số dư sau khi rút tiền (hoặc nạp tiền) thành công.
+
+Đây là một yêu cầu khá đơn giản nhưng hãy cùng mình phân tích một chút.
+
+## 2. Phân tích
+
+Nếu nhìn qua chúng ta thấy cũng không có gì phức tạp cả. Thường rút tiền hoặc nạp tiền có thể mất phí (tùy chính sách của ngân hàng) nên chúng ta chỉ cần biết phí rút tiền hoặc nạp tiền (tương ứng với số tiền nạp hoặc rút) là được. Các bạn coi đoạn code bên dưới xem sao.
+
+```java
+Scanner scan = new Scanner(System.in);
+System.out.println("Do you want to deposit or withdraw money?");
+System.out.println("1. Withdraw: ");
+System.out.println("2. Deposit: ");
+
+Integer action = scan.nextInt();
+
+Integer currentBalance = 10000000; // fixed for sample
+switch (action) {
+    case 1:
+        System.out.print("Enter the value: ");
+        Integer withdrawAmount = scan.nextInt();
+
+        Integer withdrawFee = 1000; // fixed for sample
+        System.out.printf("Bạn vừa rút: " + withdrawAmount + " VNĐ" + ", số dư hiện tại " + (currentBalance - withdrawAmount - withdrawFee));
+        break;
+    case 2:
+        System.out.print("Nhập số tiền bạn muốn nạp: ");
+        Integer depositAmount = scan.nextInt();
+
+        Integer depositFee = 1500; // fixed for sample
+        System.out.println("Bạn vừa nạp: " + depositAmount + " VNĐ" + ", số dư hiện tại " + (currentBalance + depositAmount - depositFee));
+        break;
+}
+```
+
+**Lưu ý**: Do đây chỉ là ví dụ nên mình đã fixed một số thông tin như số dư hiện tại, phí nạp, phí rút
+
+Mình tin chắc ít nhiều các bạn đã từng code như thế này, đặc biệt là trong thời gian đầu mới học và tiếp cận với việc coding.
+
+- Đầu tiên nếu mình bổ sung thêm một chức năng nào đó (chuyển tiền chẳng hạn) chúng ta sẽ phải sửa khá nhiều code chung của chương trình.
+
+- Thứ hai, nếu code như thế này chúng ta sẽ không thể sử dụng cho nhiều ngân hàng được vì mỗi ngân hàng có một chính sách phí riêng.
+
+- Ngoài ra còn một nhược điểm nữa đó là tầng giao diện có thể sẽ phải thay đổi tham số và phụ thuộc vào chương trình bên dưới.
+
+Để khắc phục được những điểm này mình sẽ cùng các bạn áp dụng Factory Method vào xem sao.
+
+## 3. Giới thiệu Factory Method
+
+> Factory Method is a creational design pattern that provides an interface for creating objects in a superclass, but allows subclasses to alter the type of objects that will be created.
+
+Nguồn: [https://refactoring.guru/](https://refactoring.guru/)
+
+Để đơn giản các bạn có thể hiểu nhiệm vụ của Factory Method đó là quản lý và trả về các đối tượng theo yêu cầu từ đó giúp cho việc khởi tạo đối tượng linh hoạt hơn.
+
+các bạn có thể tham khảo thêm ví dụ được trích dẫn ở trang web bên trên. Còn bây giờ chúng ta sẽ cùng triển khai pattern này vào các bài toán bên trên.
+
+## 4. Factory Method gồm những gì?
+
+Để triển khai Factory Method thường sẽ gồm các phần cơ bản như sau:
+
+**Super Class**: Có thể là một interface, abstract class hay thậm chí là một class bình thường với mục đích định nghĩa những phương thức được sẽ được triển khai ở tất cả các lớp con (sub class)
+
+**Sub Class**: Như mình vừa đề cập thì subclasses sẽ triển khai các phương thức được định nghĩa trong superclasses (không phải tất cả các phương thức mà chỉ những phương thức bắt buộc phải triển khai). Việc triển khai này ở mỗi subclasses là khác nhau và tùy thuộc vào nghiệp vụ của subclasses đó.
+
+**Factory Class**: Lớp này sẽ có nhiệm vụ khởi tạo các đối tượng của sub class dựa trên những tham số đầu vào tương ứng.
+
+Bây giờ chúng ta sẽ cùng code lại bài toán trên và sử dụng Factory Method.
+
+## 5. Refactoring
+
+### 5.1 - Định nghĩa các buttons
+
+Đầu tiên mình sẽ định nghĩa interface `Button` và có một phương thức `action()` như sau:
+
+```java
+public interface Button {
+    Integer action(Integer amount);
+}
+```
+
+Tiếp theo mình định nghĩa hai lớp `DepositButton` và `WithdrawButton`, hai lớp này đều implements interface `Button` bên trên.
+
+```java
+public class DepositButton implements Button {
+    private static final Integer DEPOSIT_FEE = 1_500; // fixed for sample
+
+    @Override
+    public Integer action(Integer depositAmount) {
+        Integer currentBalance = 10_000_000; // fixed for sample
+        // some logic code here
+        return currentBalance + depositAmount - DEPOSIT_FEE;
+    }
+}
+```
+
+```java
+public class WithdrawButton implements Button {
+    private static final Integer WITHDRAW_FEE = 2_000; // fixed for sample
+
+    @Override
+    public Integer action(Integer withdrawAmount) {
+        Integer currentBalance = 10_000_000; // fixed for sample
+        // some logic code here
+        return currentBalance - withdrawAmount - WITHDRAW_FEE;
+    }
+}
+```
+
+Các bạn có thể định nghĩa thêm bao nhiêu button tùy ý và triển khai logic code trên mỗi button mà không lo ảnh hưởng tới button khác.
+
+### 5.2 - Định nghĩa các factory
+
+Tiếp theo chúng ta sẽ tạo các factory để "sản xuất" ra các button khác nhau.
+
+Đầu tiên định nghĩa một abstract class là `ButtonFactory` và có một abstract method như sau:
+
+```java
+public abstract class ButtonFactory {
+    abstract Button defineButton();
+}
+```
+
+**Lưu ý**: Ở đây có thể các bạn sẽ thắc mắc là tạo sao không sử dụng interface mà lại sử dụng abstract class? Nguyên nhân là trong nhiều trường hợp có những hàm dùng chung (thường là các hàm validate dữ liệu, kiểm tra điều kiện...) và nếu sử dụng interface chúng ta sẽ không thể triển khai logic được.
+
+Ví dụ nếu sử dụng abstract class thì mình có thể viết thêm hàm `validateButton()` như sau:
+
+```java
+public abstract class ButtonFactory {
+    abstract Button defineButton();
+
+    void validateButton(String btnName) {
+        // logic code here
+    }
+}
+```
+
+Hàm này có thể được sử dụng ở tất cả các lớp kế thừa lớp `ButtonFactory` và nếu dùng interface thì sẽ không thể làm được điều đó.
+
+Tiếp theo mình định nghĩa hai class `DepositButtonFactory` và `WithdrawButtonFactory` như sau:
+
+```java
+public class DepositButtonFactory extends ButtonFactory {
+    @Override
+    Button defineButton() {
+        this.validateButton("DEPOSIT");
+
+        return new DepositButton();
+    }
+}
+```
+
+```java
+public class WithdrawButtonFactory extends ButtonFactory {
+    @Override
+    Button defineButton() {
+        this.validateButton("WITHDRAW");
+
+        // some logic here
+        return new WithdrawButton();
+    }
+}
+```
+
+Cuối cùng mình sẽ viết lại chương trình ban đầu:
+
+```java
+public class Main {
+    public static void main(String[] args) {
+        Scanner scan = new Scanner(System.in);
+        System.out.println("Bạn muốn nạp tiền hay rút tiền? ");
+        System.out.println("1. Rút tiền: ");
+        System.out.println("2. Nạp tiền: ");
+
+        Integer action = scan.nextInt();
+
+        ButtonFactory btnFactory;
+        Button btn;
+        Integer currentBalance;
+
+        switch (action) {
+            case 1:
+                System.out.print("Nhập số tiền bạn muốn rút: ");
+                Integer withdrawAmount = scan.nextInt();
+
+                btnFactory = new WithdrawButtonFactory();
+                btn = btnFactory.defineButton();
+                currentBalance = btn.action(withdrawAmount);
+
+                System.out.println("Bạn vừa rút: " + withdrawAmount + " VNĐ" + ", số dư hiện tại " + currentBalance);
+                break;
+            case 2:
+                System.out.print("Nhập số tiền bạn muốn nạp: ");
+                Integer depositAmount = scan.nextInt();
+
+                btnFactory = new DepositButtonFactory();
+                btn = btnFactory.defineButton();
+                currentBalance = btn.action(depositAmount);
+
+                System.out.println("Bạn vừa nạp: " + depositAmount + " VNĐ" + ", số dư hiện tại " + currentBalance);
+                break;
+        }
+    }
+}
+```
+
+Nếu đem so sánh với đoạn code ban đầu, rõ ràng nếu áp dụng Factory Method thì code sẽ dài và nhiều file hơn. Nhưng thay vào đó code của chúng ta lại clean và extentable hơn rất nhiều.
+
+Bây giờ các bạn có thể thêm bao nhiêu button tùy ý, mỗi button triển khai một logic nghiệp vụ khác nhau và không gây ảnh hưởng tới chương trình chung.
+
+Nhưng bài toán của chúng ta đã xong chưa? Với các ngân hàng khác nhau thì sao?
+
+## 6. Mở rộng
+
+Qua ví dụ bên trên chắc các bạn cũng phần nào hiểu hơn về pattern này hơn? Nhưng như các bạn thấy mình vẫn fixed cứng một vài thông tin như phí nạp, phí rút mà lẽ ra những thông tin này phải được trả ra theo từng ngân hàng khác nhau.
+
+Vấn đề là bây giờ có một cây ATM hỗ trợ các loại thẻ của nhiều ngân hàng khác nhau. Người dùng muốn rút tiền hoặc nạp tiền phải chọn ngân hàng tương ứng (giả sử cây ATM không tự xác định thẻ của ngân hàng nào) thì phải làm sao?
+
+Tiếp tục áp dụng Factory Method xem chúng ta giải quyết bài toán này sao.
+
+Đầu tiên mình tạo interface `Bank` bao gồm hai phương thức là `getWithdrawFee()`, `getDepositFee()` để lấy thông tin phí rút tiền và nạp tiền như sau:
+
+```java
+public interface Bank {
+    Integer getWithdrawFee();
+    Integer getDepositFee();
+}
+```
+
+Tiếp tục giả sử mình có hai ngân hàng là `TPBank` và `TechcomBank` và hai ngân hàng này sẽ có các mức phí rút, nạp tiền khác nhau (thực tế để lấy được mức phí này còn một loạt các nghiệp vụ khác nhưng ở đây để đơn giản mình return luôn).
+
+```java
+public class TPBank implements Bank {
+    @Override
+    public Integer getWithdrawFee() {
+        return 1500;
+    }
+
+    @Override
+    public Integer getDepositFee() {
+        return 2000;
+    }
+}
+```
+
+```java
+public class TechcomBank implements Bank {
+    @Override
+    public Integer getWithdrawFee() {
+        return 1100;
+    }
+
+    @Override
+    public Integer getDepositFee() {
+        return 2100;
+    }
+}
+```
+
+Cuối cùng mình sẽ tạo một `BankFactory` để trả về các đối tượng bank theo yêu cầu đầu vào như sau:
+
+```java
+public abstract class BankFactory {
+    public static final Bank getBank(String bankName) {
+        switch (bankName) {
+            case "TPBANK":
+                return new TPBank();
+            case "TECHCOMBANK":
+                return new TechcomBank();
+            default:
+                throw new IllegalArgumentException("invalid bank's name");
+        }
+    }
+}
+```
+
+Bây giờ mình sẽ viết lại chương trình như sau:
+
+```java
+public class Main {
+    static Scanner scan = new Scanner(System.in);
+
+    public static void main(String[] args) {
+        Scanner scan = new Scanner(System.in);
+        System.out.println("Chọn ngân hàng: ");
+
+        System.out.println("1. TP Bank: ");
+        System.out.println("2. Techcom Bank: ");
+
+        Integer bankType = scan.nextInt();
+
+        Bank bank;
+        switch (bankType) {
+            case 1:
+                bank = BankFactory.getBank("TPBANK");
+                doAction(bank);
+                break;
+            case 2:
+                bank = BankFactory.getBank("TECHCOMBANK");
+                doAction(bank);
+                break;
+        }
+
+    }
+
+    public static void doAction(Bank bank) {
+        ButtonFactory btnFactory;
+        Button btn;
+        Integer currentBalance;
+
+        System.out.println("Bạn muốn nạp tiền hay rút tiền? ");
+        System.out.println("1. Rút tiền: ");
+        System.out.println("2. Nạp tiền: ");
+
+        Integer action = scan.nextInt();
+
+        switch (action) {
+            case 1:
+                System.out.print("Nhập số tiền bạn muốn rút: ");
+                Integer withdrawAmount = scan.nextInt();
+
+                btnFactory = new WithdrawButtonFactory();
+                btn = btnFactory.defineButton();
+                currentBalance = btn.action(withdrawAmount, bank.getWithdrawFee());
+
+                System.out.println("Bạn vừa rút: " + withdrawAmount + " VNĐ" + ", số dư hiện tại " + currentBalance);
+                break;
+            case 2:
+                System.out.print("Nhập số tiền bạn muốn nạp: ");
+                Integer depositAmount = scan.nextInt();
+
+                btnFactory = new DepositButtonFactory();
+                btn = btnFactory.defineButton();
+                currentBalance = btn.action(depositAmount, bank.getDepositFee());
+
+                System.out.println("Bạn vừa nạp: " + depositAmount + " VNĐ" + ", số dư hiện tại " + currentBalance);
+                break;
+        }
+    }
+}
+```
+
+Test:
+
+```logs
+Chọn ngân hàng:
+1. TP Bank:
+2. Techcom Bank:
+1
+Bạn muốn nạp tiền hay rút tiền?
+1. Rút tiền:
+2. Nạp tiền:
+1
+Nhập số tiền bạn muốn rút: 5000000
+Bạn vừa rút: 5000000 VNĐ, số dư hiện tại 4998500
+```
+
+## 7. Tổng kết
+
+Vậy là trong bài viết này mình đã cùng các bạn tìm hiểu về một design pattern có thể nói là khá phổ biến, đơn giản nhưng lại rất lợi hại.
+
+Và rõ ràng nếu áp dụng được những design pattern như thế này vào code thì chương trình của chúng ta sẽ rất dễ mở rộng và nâng cấp sau này.
+
+Hi vọng bài viết phần nào giúp các bạn hiểu hơn về cách chúng ta triển khai Factory Method.
+
+## 8. Tham khảo
+
+- [https://refactoring.guru/design-patterns/factory-method](https://refactoring.guru/design-patterns/factory-method)
+- [https://sourcemaking.com/design_patterns/factory_method](https://sourcemaking.com/design_patterns/factory_method)
+- [https://gpcoder.com/4352-huong-dan-java-design-pattern-factory-method/](https://gpcoder.com/4352-huong-dan-java-design-pattern-factory-method/)
+
+Hẹn gặp lại các bạn trong các bài viết tiếp theo.
