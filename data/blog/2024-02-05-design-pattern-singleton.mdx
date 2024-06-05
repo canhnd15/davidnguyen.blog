@@ -1,0 +1,261 @@
+---
+title: '[Design Pattern] - Singleton'
+date: '2024-02-20'
+lastmod: '2024-02-20'
+tags: ['Design Pattern']
+draft: false
+summary: Tiếp tục seri Design Patterns hôm nay mình sẽ cùng các bạn tìm hiểu về một Creational Design Pattern nữa cũng rất thú vị đó là Singleton Pattern.
+images: ['/static/img/prompts/structured-blocks-cover.png']
+layout: PostLayout
+---
+
+Tiếp tục chủ đề liên quan đến các Design Patterns, hôm nay mình sẽ cùng anh em tìm hiểu về Singleton Pattern - một pattern nữa thuộc nhóm các Creational Design Patterns.
+
+![Alt text](/static/img/posts/singletonpngcover.png 'a thumbnail')
+
+Ngoài ra nếu các bạn nào quan tâm thì có thể tham khảo các bài viết khác cùng chủ đề Design Patterns được mình tổng hợp [tại đây](https://davidnguyenblog.vercel.app/tags/design-pattern).
+
+<TOCInline toc={props.toc} asDisclosure toHeading={3} />
+
+## 1. Singleton là gì?
+
+> Singleton is a creational design pattern that lets you ensure that a class has only one instance, while providing a global access point to this instance
+
+Vẫn là câu chuyện liên quan tới việc khởi tạo các đối tượng, Singleton được định nghĩa là một pattern giúp chúng ta đảm bảo một class chỉ có một instance duy nhất trong khi vẫn có thể truy xuất đến instance này ở cấp độ toàn bộ chương trình.
+
+## 2. Singleton giải quyết bài toán gì?
+
+### 2.1 - Controlled access to resource
+
+Đơn cử, mỗi khi tạo ra một instance của class hệ thống, chương trình phải cấp thêm tài nguyên để lưu trữ instance đó trong bộ nhớ.
+
+Thường gặp nhất chính là các đối tượng phục vụ việc truy cập và thao tác với cơ sở dữ liệu, files hoặc các tài nguyên được chia sẻ (shared resource) chung trong hệ thống.
+
+Giả sử class DatabaseConnection có chức năng tạo kết nối (connection) tới database như sau:
+
+```java
+DatabaseConnection dbConnection = new DatabaseConnection();
+```
+
+Nếu việc kết nối đến database là không thường xuyên hoặc chỉ được thực hiện bởi một số chức năng thì chúng ta có thể dùng toán tử `new` tạo ra các đối tượng như bên trên.
+
+Nhưng nếu hệ thống có n chức năng muốn truy cập vào database thì sao? Với `n` chức năng mỗi chức năng lại truy cập `m` lần, dẫn đến có thể có `n*m` yêu cầu tạo kết nối đến database cùng lúc và chắc chắn điều này là không nên. Vậy làm sao để khắc phục? Singleton là một trong số những giải pháp cho tình huống này.
+
+### 2.2 - Global access point
+
+Trong nhiều hệ thống, ứng dụng có những đối tượng cần được truy cập toàn cục từ nhiều module ví dụ như đối tượng cài đặt cấu hình, đối tương ghi logs...
+
+Như mình đã đề cập, Singleton giúp tạo ra một instance duy nhất cho việc truy xuất tới các tài nguyên được chia sẻ chung và trong trương hợp này Singleton cũng giải quyết được bài toán về việc truy cập toàn mà không cần sử dụng toán tử `new`
+
+## 3. Các bước triển khai Singleton
+
+![Alt text](/static/img/posts/singleton-image-1.png 'a thumbnail')
+
+- Đầu tiên là tạo một `constructor` mặc định có chế độ truy cập `private`. Mục đích là để ngăn việc khởi tạo đối tượng từ bên ngoài class đó thông qua từ toán tử `new`.
+
+- Tiếp theo là tạo một static method, hàm này sẽ gọi đến private constructor để tạo một đối tượng và chúng ta sẽ gán nó vào một static field của class. Các lần gọi hàm này tiếp theo đều sẽ trả về đối tượng được tạo ra sau lần gọi đầu tiên (cached object)
+
+Khi đó, ở bất cứ đâu trong chương trình nếu có thể sử dụng Singleton class này thì chúng ta đều có thể gọi tới static method và hàm này sẽ luôn luôn trả về cùng một đối tượng.
+
+## 4. Những cách triển khai Singleton Pattern?
+
+Về cơ bản triển khai Singleton Pattern sẽ có hai bước như mình đề cập bên trên nhưng thực tế lại có nhiều cách triển khai khác nhau. Mỗi cách đều có ưu, nhược điểm riêng và tuỳ vào bài toán cụ thể chúng ta sẽ sử dụng những cách triển khai khác nhau.
+
+### 4.1 - Eager initialization
+
+```java
+public class EagerInitializedSingleton {
+    private static final EagerInitializedSingleton INSTANCE = new EagerInitializedSingleton();
+
+    // private constructor to avoid client applications using the constructor
+    private EagerInitializedSingleton(){}
+
+    public static EagerInitializedSingleton getInstance(){
+        return INSTANCE;
+    }
+}
+```
+
+- Ưu điểm: Đơn giản, dễ triển khai
+- Nhược điểm:
+  - Đối tượng được khởi tạo ngay cả khi client có thể chưa sử dụng đến. Nguyên nhân vì đối tượng của lớp Singleton được tạo ngay khi class đang được load bởi JVM mà chưa cần phải gọi hàm `getInstance()`.
+  - Ngoài ra cách này cũng không đảm bảo trong việc xử lý các ngoại lệ (exception handling)
+- Trong các trường hợp class Singleton không sử dụng nhiều tài nguyên, đây là một cách cài đặt có thể sử dụng được.
+
+### 4.2 - Static block initialization
+
+```java
+public class StaticBlockInitializedSingleton {
+    private static StaticBlockInitializedSingleton INSTANCE;
+
+    private StaticBlockInitializedSingleton() {}
+
+    static {
+        try {
+            INSTANCE = new StaticBlockInitializedSingleton();
+        } catch (Exception e) {
+            throw new RuntimeException("Exception occured in creating singleton instance");
+        }
+    }
+
+    public static StaticBlockInitializedSingleton getInstance() {
+        return INSTANCE;
+    }
+}
+```
+
+Với cách triển khai này, về cơ bản cũng tương tự với cách triển khai đầu tiên. Khác biệt là ở chỗ chúng ta sử dụng một `static block` thay vì toán tử `new` để có thể đảm bảo việc xử lý các ngoại lệ trong quá trình khởi tạo đối tượng.
+
+### 4.3 - Lazy initialization
+
+```java
+public class LazyInitializedSingleton {
+    private static LazyInitializedSingleton INSTANCE;
+
+    private LazyInitializedSingleton(){}
+
+    public static LazyInitializedSingleton getInstance(){
+        if(INSTANCE == null){
+            INSTANCE = new LazyInitializedSingleton();
+        }
+        return INSTANCE;
+    }
+}
+```
+
+- Ưu điểm: Khắc phục được nhược điểm lớn nhất từ hai cách khởi tạo ban đầu đó là việc đối tượng sẽ không được khởi tạo ngay khi gọi đến class mà chỉ khi gọi hàm `getInstance()` thì đối tượng mới được khởi tạo một lần và duy nhất.
+
+- Nhược điểm:
+  - Tuy là ưu điểm so với hai cách đầu nhưng chỉ trong môi trường đơn luồng (single-threaded). Còn trong môi trường đa luồng (multi-threaded) thì lại chưa đảm bảo được instance được tạo ra là duy nhất.
+  - Nguyên nhân là tại cùng một thời điểm mỗi một thread trong chương trình hoàn toàn có thể tạo ra một đối tượng mới khi điểu kiện `if (INSTANCE == null)` có thể đúng ở mỗi thread khác nhau.
+
+### 4.4 - Thread Safe Singleton
+
+```java
+public class ThreadSafeInitializedSingleton {
+    private static volatile ThreadSafeInitializedSingleton INSTANCE;
+
+    private ThreadSafeInitializedSingleton() {}
+
+    public static synchronized ThreadSafeInitializedSingleton getInstance() {
+        if (INSTANCE == null) {
+            INSTANCE = new ThreadSafeInitializedSingleton();
+        }
+        return INSTANCE;
+    }
+}
+```
+
+**Lưu ý**: Sử dụng `volatile` sẽ giúp thông báo sự thay đổi của một biến tới các thread khác nhau trong chương trình nếu như biến này đang được sử dụng ở nhiều threads khác nhau.
+
+Để khắc phục vấn đề liên quan đến môi trường multi-threaded chúng ta sẽ sử dụng `synchronized` method cho việc khởi tạo đối tượng.
+
+Bản chất của cách làm này là đồng bộ hóa để các thread chạy tuần tự khi có yêu cầu khởi tạo đối tượng. Ví dụ chương trình có n thread đang chạy thì có `k (k <= n)` thread yêu cầu khởi tạo đối tượng.
+
+Khi đó k thread này sẽ tuần tự gọi đến hàm `getInstance()` và chỉ có thread đầu tiên đối tượng được khởi tạo. Sau khi thread đầu tiên gọi và khởi tạo thành công các thread khác gọi vào hàm này sẽ được trả về cùng đối tượng được tạo ra từ lần gọi đầu tiên.
+
+Có thể thấy cách này giải quyết được vấn đề multi-threaded nhưng về mặt hiệu năng (performance) thì lại không tốt vì các thread sẽ phải chờ nhau và nó đánh mất ưu điểm vốn có của multi-threaded.
+
+Đẻ khắc phục điều này chúng ta có thể sử dụng Double Checked Locking Singleton như sau:
+
+```java
+public class ThreadSafeInitializedSingleton {
+    private static volatile ThreadSafeInitializedSingleton INSTANCE;
+
+    private ThreadSafeInitializedSingleton() {}
+
+    public static ThreadSafeInitializedSingleton getInstance() {
+        if (INSTANCE == null) {
+            synchronized (ThreadSafeInitializedSingleton.class) {
+                if (INSTANCE == null) {
+                    INSTANCE = new ThreadSafeInitializedSingleton();
+                }
+            }
+        }
+        return INSTANCE;
+    }
+}
+```
+
+### 4.5 - Bill Pugh Singleton
+
+```java
+public class BillPughInitializedSingleton {
+    private BillPughInitializedSingleton() {}
+
+    private static class SingletonHolder {
+        static final BillPughInitializedSingleton INSTANCE = new BillPughInitializedSingleton();
+    }
+
+    public static BillPughInitializedSingleton getInstance() {
+        return SingletonHolder.INSTANCE;
+    }
+}
+```
+
+Đây là phương pháp khởi tạo theo kiểu [initialization-on-demand-holder](https://en.wikipedia.org/wiki/Initialization-on-demand_holder_idiom) và được khuyến khích sử dụng cho việc tạo các class singleton.
+
+Vậy tư tưởng của cách này là gì mà các chuyên gia đều khuyên sử dụng?
+
+Không giống như những cách trước chúng ta tạo một `static field` bên trong class và khi class được gọi đến thì biến này sẽ được khởi tạo.
+
+Khi sử dụng Bill Pugh Singleton chúng ta đẩy việc này cho một class khác đóng vai trò holder và khi class `BillPughInitializeSingleton` được gọi do không có bất kỳ static field nào nên sẽ không có bất kỳ đối tượng nào được khởi tạo.
+
+Chỉ khi nào chúng ta gọi đến hàm `getInstance()` thì class `SingletonHolder` mới được gọi và static field bên trong lớp đó mới được khởi tạo bằng cách gọi đến private constructor của class `BillPughInitializeSingleton`.
+
+Việc khởi tạo là tuần tự và được đảm bảo bởi JLS (Java Language Specification). Cũng chính về thế chúng ta không cần phải đồng bộ phương thức này ngay cả trong môi trường multi-threaded .
+
+Đây là cách tiếp cận được đánh giá đơn giản nhưng lại khắc phục được hầu hết các vấn đề chúng ta phải đối mặt khi sử dụng những cách cũ (từ việc tránh khởi tạo khi không cần thiết, đảm bảo xử lý ngoại lệ cho đến các vấn đề về multi-threaded )
+
+### 4.6 - Enum Singleton
+
+```java
+public enum EnumSingleton {
+    INSTANCE;
+
+    public static void doSomething() {
+        // implement what to do with this class
+    }
+}
+```
+
+Trong Java có thể sử dụng Reflection để phá vỡ cấu trúc của Singleton, vậy nên các chuyên gia khuyên sử dụng Enum để triển khai Singleton bởi vì Java đảm bảo việc Enum sẽ chỉ được khởi tạo một lần duy nhất trong một chương trình Java.
+
+Các giá trị Enum của Java có thể được truy cập từ bên ngoài class, vì vậy nó cũng là Singleton. Nhược điểm là kiểu enum sẽ không được linh hoạt như khi sử dụng class.
+
+## 5. Usecase
+
+- Khi nào?
+
+Như mình đã chia sẻ trong phần đầu và đặc điểm của các Singleton class là chỉ có một instance duy nhất nên chủ yếu pattern này được sử dụng trong việc giải quyết các bài toán truy cập tài nguyên như: Shared resource, Logger, Configuration, Caching, Thread pool...
+
+- Ở đâu?
+
+`Abstract Factory`, `Builder`, `Prototype`... cũng có thể sử dụng Singleton để triển khai và tối ưu.
+
+Ngoài ra nhiều class như `java.lang.Runtime`, `java.awt.Desktop` cũng được triển khai dựa vào pattern này.
+
+## 6. Kết luận
+
+Singleton Pattern tuy là một pattern có cách triển khai đơn giản nhưng lại có nhiều cách triển khai khác nhau. Tùy trường hợp mà chúng ta sử dụng những cách triển khai sao cho phù hợp.
+
+Đơn giản nhất anh em có thể sử dụng Bill Pugh Singleton vì hiệu suất cao được nhiều chuyên gia khuyên dùng.
+
+Nhưng đôi khi với các ứng dụng đơn luồng anh em có thể dùng Lazy Initilized Singleton hoặc với các ứng dụng đa luồng anh em có thể sử dụng Double Checked Locking Singleton.
+
+## 7. Tham khảo
+
+Các bài viết cùng chủ đề [design pattern](https://davidnguyenblog.vercel.app/tags/design-pattern)
+
+Source Code:
+
+- Các bạn có thể tham khảo [source code](https://github.com/canhnd15/Design-Pattern/tree/master/Creational/src/main/java/com/davidnguyen/singleton)
+
+Refer:
+
+- [https://refactoring.guru/design-patterns/singleton](https://refactoring.guru/design-patterns/singleton)
+- [https://www.journaldev.com/1377/java-singleton-design-pattern-best-practices-examples#enum-singleton](https://www.journaldev.com/1377/java-singleton-design-pattern-best-practices-examples#enum-singleton)
+- [https://en.wikipedia.org/wiki/Initialization-on-demand_holder_idiom](https://en.wikipedia.org/wiki/Initialization-on-demand_holder_idiom)
+- [https://gpcoder.com/4190-huong-dan-java-design-pattern-singleton/](https://gpcoder.com/4190-huong-dan-java-design-pattern-singleton/)
+
+Hẹn gặp lại các bạn trong các bài viết tiếp theo.
