@@ -1,0 +1,1421 @@
+---
+title: '[Spring Boot] - Bảo mật ứng dụng Spring với Spring Security và JWT'
+date: '2024-04-04'
+lastmod: '2024-04-04'
+tags: ['Spring Boot', 'Spring Security', 'JWT']
+draft: false
+summary: Trong thời đại kỹ thuật số hiện nay, việc xác thực (authentication) và phân quyền (authorization) là những khía cạnh cơ bản và tất yếu của bất kỳ hệ thống nào. Với các hệ thống được xây dựng trên nền tảng của Spring Framework chúng ta có thể sử dụng Spring Security kết hợp với JWT để có một giải pháp linh hoạt, an toàn cho việc triển khai các cơ chế phân quyền và xác thực.
+images: ['/static/img/prompts/structured-blocks-cover.png']
+layout: PostLayout
+---
+
+Bài viết này mình sẽ cùng cùng các bạn tìm hiểu về cách bảo mật một ứng dụng Spring Boot thông qua Spring Security kết hợp với JWT. Bài viết khá dài nhưng mình sẽ chia theo từng mục lớn và triển khai chi tiết từng phần. Cuối bài viết mình cũng có đính kèm source code để các bạn có thể tham khảo. Okay, bắt đầu thôi nhỉ!
+
+<TOCInline toc={props.toc} asDisclosure toHeading={3} />
+
+## 1. JSON Web Token (JWT)
+
+### 1.1 - JWT là gì?
+
+Có rất nhiều định nghĩa khác nhau nhưng ở đây mình trích từ [trang chủ](https://jwt.io/introduction) như sau:
+
+> "JSON Web Token (JWT) is an open standard (RFC 7519) that defines a compact and self-contained way for securely transmitting information between parties as a JSON object. This information can be verified and trusted because it is digitally signed. JWTs can be signed using a secret (with the HMAC algorithm) or a public/private key pair using RSA or ECDSA"
+
+**Compact and self-contained**: Một đặc điểm và cũng là lợi điểm của JWT nếu đem so sánh với SWT (Simple Web Tokens) hay SAML (Security Assertion Markup Language Tokens) chính là sự gọn nhẹ và độc lập truyền tải thông tin.
+
+**JSON object**: JSON (JavaScript Object Notation) là một kiểu cấu trúc dữ liệu được xây dựng theo các cặp key - value. Bản chất của JWT cũng là một chuỗi của các JSON object được mã hóa.
+
+**Signed using a secret or public/private key pair**: Đã là token thì tất nhiên phải được bảo mật và đối với JWT thì chúng ta có hai phương pháp ký để đảm bảo tính toàn vẹn cũng như bảo mật của dữ liệu đó là sử dụng secret key (ký bằng thuật toán HMAC) hoặc sử dụng public/private key (ký bằng thuật toán RSA hoặc ECDSA)
+
+### 1.2 - Cấu trúc của JWT
+
+Một chuỗi JWT sẽ bao gồm 3 phần phân cách nhau bởi dấu chấm (.)
+
+```logs
+[Header].[Payload].[Signature]
+```
+
+- 1. Header
+
+Thông thường header sẽ bao gồm 2 phần: loại token và thuật toán dùng để ký
+
+- 2. Payload:
+
+Phần thứ hai của JWT là payload chứa thông tin (claims) về đối tượng truy cập hệ thống (user) và các thông tin được bổ sung thêm.
+
+- 3. Signature:
+
+Để tạo ra được signature chúng ta sẽ phải có: base64Url encoded header, base64Url encoded payload, secret key, sign algorithm
+
+### 1.3 - JWT hoạt động như thế nào?
+
+![structured blocks](/static/img/posts/springbootjwt/spring-boot-jwt-jwt.png)
+
+Đối với các hệ thống sử dụng token-based authentication hay cụ thể hơn là sử dụng JWT thì khi người dùng đăng nhập vào hệ thống sẽ nhận lại một JWT nếu đăng nhập thành công.
+
+Từ các request tiếp theo JWT sẽ được đính kèm trong phần header và thường có dạng như sau:
+
+Authorization: `Bearer <JWT>`
+
+Ví dụ:
+
+```logs
+curl --location 'https://api.myblog/posts' \
+--header 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyLCJleHAiOjIwMjMxMjAxMzQsImVtYWlsIjoibGFwdHJpbmhiMmFAZ21haWwuY29tIn0.Qa24mhnjonbkOm18YK8kKot-l8ULB0AfMFBN5L-KoXA' \
+--header 'Content-Type: application/json' \
+--data '{
+    ...
+}'
+```
+
+Hệ thống sẽ sử dụng JWT này để xác thực và phân quyền người dùng được phép truy cập vào những tài nguyên, services, APIs nào của hệ thống.
+
+Để hiểu hơn về JWT các bạn có thể tham khảo thêm [bài viết](https://davidnguyenblog.vercel.app/blog/jwt-json-web-token) này của mình.
+
+## 2. Cài đặt và cấu hình ứng dụng Spring Boot.
+
+Để khởi tạo ứng dụng Spring Boot các bạn có thể truy cập [https://start.spring.io/](https://start.spring.io/) và chọn các dependencies như bên dưới sau đó bấm GENERATE và import vào IDE.
+
+![structured blocks](/static/img/posts/springbootjwt/spring-boot-jwt-init.png)
+
+Cụ thể các dependencies trong file `pom.xml` như sau:
+
+```xml
+<dependencies>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-data-jpa</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-validation</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-web</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.mariadb.jdbc</groupId>
+			<artifactId>mariadb-java-client</artifactId>
+			<scope>runtime</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.projectlombok</groupId>
+			<artifactId>lombok</artifactId>
+			<optional>true</optional>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+	</dependencies>
+```
+
+Cấu hình kết nối database trong file `application.properties`. Ví dụ này mình sử dụng MariaDB chạy qua Docker.
+
+```properties
+spring.datasource.url=jdbc:mariadb://localhost:3306/usertest?useSSL=false
+spring.datasource.username=<your database username>
+spring.datasource.password=<your database password>
+spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.MariaDBDialect
+spring.jpa.hibernate.ddl-auto=update
+```
+
+Tạo các entity `User` và `Role` như bên dưới. Mối quan hệ giữ User và Role là n-n vì vậy mình dùng `@ManyToMany` và `@JoinTable` để sinh ra bảng phụ user_roles và chuyển quan hệ về 1-n. Ngoài ra còn có `ERole` là một enum định nghĩa các loại quyền của user.
+
+```java
+@Data
+@AllArgsConstructor
+@NoArgsConstructor
+@Entity
+@Table(name = "user",
+        uniqueConstraints = {
+                @UniqueConstraint(columnNames = "username"),
+                @UniqueConstraint(columnNames = "email")
+        })
+@Builder
+public class User {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    private String username;
+
+    private String email;
+
+    private String password;
+
+    private boolean enabled;
+
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(  name = "user_roles",
+            joinColumns = @JoinColumn(name = "user_id"),
+            inverseJoinColumns = @JoinColumn(name = "role_id"))
+    private Set<Role> roles = new HashSet<>();
+}
+```
+
+```java
+public enum ERole {
+    ROLE_USER,
+    ROLE_ADMIN,
+    ROLE_SUPER_ADMIN
+}
+```
+
+```java
+@Data
+@AllArgsConstructor
+@NoArgsConstructor
+@Entity
+@Table(name = "roles")
+public class Role {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Integer id;
+
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    private ERole name;
+
+    public Role(ERole name) {
+        this.name = name;
+    }
+}
+```
+
+Tạo các repository: `UserRepository` và `RoleRepository`
+
+```java
+@Repository
+public interface UserRepository extends JpaRepository<User, Long> {
+    Optional<User> findByEmail(String email);
+    Boolean existsByUsername(String username);
+    Boolean existsByEmail(String email);
+}
+```
+
+```java
+@Repository
+public interface RoleRepository extends JpaRepository<Role, Long> {
+    Role findByName(ERole name);
+}
+```
+
+Tạo các service: `UserService`, `UserServiceImpl`
+
+```java
+public interface UserService {
+    boolean existByUsername(String username);
+    boolean existByEmail(String email);
+    void save(User user);
+}
+```
+
+```java
+@Service
+public class UserServiceImpl implements UserService {
+    private final UserRepository userRepository;
+
+    public UserServiceImpl(UserRepository userRepository) {
+        this.userRepository = userRepository;
+    }
+
+    @Override
+    public boolean existByUsername(String username) {
+        return userRepository.existsByUsername(username);
+    }
+
+    @Override
+    public boolean existByEmail(String email) {
+        return userRepository.existsByEmail(email);
+    }
+
+    @Override
+    public void save(User user) {
+        userRepository.save(user);
+    }
+}
+```
+
+Tạo DTO `ApiResponseDto` để trả kết quả cho client.
+
+```java
+@AllArgsConstructor
+@Data
+@Builder
+public class ApiResponseDto<T> {
+    private String status;
+    private String message;
+    private T response;
+}
+```
+
+Cuối cùng là tạo controller `TestController`
+
+```java
+@CrossOrigin(origins = "*")
+@RestController
+@RequestMapping("/api/test")
+public class TestController {
+
+    @GetMapping()
+    public ResponseEntity<ApiResponseDto<?>> Test() {
+        return ResponseEntity
+                .status(HttpStatus.OK)
+                .body(ApiResponseDto.builder()
+                                .status(String.valueOf(ResponseStatus.SUCCESS))
+                                .message("Securing Spring Boot using Spring Security and JWT")
+                                .build());
+    }
+}
+```
+
+Vậy là về cơ bản chúng ta đã tạo được một Spring Boot application. Chạy ứng dụng lên sau đó các bạn có thể sử dụng bất client tool nào để test, ở đây mình dùng [httpie](https://httpie.io/), các bạn có thể dùng [postman](https://www.postman.com/),...
+
+```logs
+❯ http http://localhost:8091/api/test
+HTTP/1.1 200
+Connection: keep-alive
+Content-Type: application/json
+Date: Sat, 08 Jun 2024 03:07:21 GMT
+Keep-Alive: timeout=60
+Transfer-Encoding: chunked
+Vary: Origin
+Vary: Access-Control-Request-Method
+Vary: Access-Control-Request-Headers
+
+{
+    "message": "Securing Spring Boot using Spring Security and JWT",
+    "response": null,
+    "status": "SUCCESS"
+}
+```
+
+## 3. Thêm các dependencies cho JWT và Spring Security.
+
+Để cấu hình được Spring Security và JWT các bạn cần thêm các dependencies sau vào file `pom.xml`
+
+```xml
+  <dependency>
+   <groupId>org.springframework.boot</groupId>
+   <artifactId>spring-boot-starter-security</artifactId>
+  </dependency>
+
+  <dependency>
+   <groupId>org.springframework.security</groupId>
+   <artifactId>spring-security-test</artifactId>
+   <scope>test</scope>
+  </dependency>
+
+  <dependency>
+   <groupId>io.jsonwebtoken</groupId>
+   <artifactId>jjwt-api</artifactId>
+   <version>0.11.5</version>
+  </dependency>
+
+  <dependency>
+   <groupId>io.jsonwebtoken</groupId>
+   <artifactId>jjwt-impl</artifactId>
+   <version>0.11.5</version>
+  </dependency>
+
+  <dependency>
+   <groupId>io.jsonwebtoken</groupId>
+   <artifactId>jjwt-jackson</artifactId>
+   <version>0.11.5</version>
+  </dependency>
+```
+
+Chạy lại ứng dụng:
+
+```logs
+2024-06-08T10:12:28.209+07:00  WARN 62491 --- [springbootjwtex] [           main] .s.s.UserDetailsServiceAutoConfiguration :
+
+Using generated security password: 9e610a26-dd2c-476e-b2c7-61c7c36f00dc
+
+This generated password is for development use only. Your security configuration must be updated before running your application in production.
+
+2024-06-08T10:12:28.222+07:00  INFO 62491 --- [springbootjwtex] [           main] r$InitializeUserDetailsManagerConfigurer : Global AuthenticationManager configured with UserDetailsService bean with name inMemoryUserDetailsManager
+2024-06-08T10:12:28.285+07:00  INFO 62491 --- [springbootjwtex] [           main] o.s.s.web.DefaultSecurityFilterChain     : Will secure any request with [org.springframework.security.web.session.DisableEncodeUrlFilter@95958d9, org.springframework.security.web.context.request.async.WebAsyncManagerIntegrationFilter@70fe33fa, org.springframework.security.web.context.SecurityContextHolderFilter@3531509c, org.springframework.security.web.header.HeaderWriterFilter@1390a43a, org.springframework.web.filter.CorsFilter@3dfaa1e4, org.springframework.security.web.csrf.CsrfFilter@7151dd9d, org.springframework.security.web.authentication.logout.LogoutFilter@54da736e, org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter@1ece052b, org.springframework.security.web.authentication.ui.DefaultLoginPageGeneratingFilter@2ca464bb, org.springframework.security.web.authentication.ui.DefaultLogoutPageGeneratingFilter@796a7c9, org.springframework.security.web.authentication.www.BasicAuthenticationFilter@237b54bc, org.springframework.security.web.savedrequest.RequestCacheAwareFilter@4f2b1a2f, org.springframework.security.web.servletapi.SecurityContextHolderAwareRequestFilter@53202b06, org.springframework.security.web.authentication.AnonymousAuthenticationFilter@44cab872, org.springframework.security.web.access.ExceptionTranslationFilter@3328db4f, org.springframework.security.web.access.intercept.AuthorizationFilter@3b171fbd]
+2024-06-08T10:12:28.321+07:00  INFO 62491 --- [springbootjwtex] [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat started on port 8091 (http) with context path '/'
+2024-06-08T10:12:28.327+07:00  INFO 62491 --- [springbootjwtex] [           main] c.d.s.SpringbootjwtexApplication         : Started SpringbootjwtexApplication in 2.836 seconds (process running for 3.189)
+```
+
+Sau khi thêm Spring Security ứng dụng Spring Boot lúc này sẽ được "đắp" thêm các lớp filter (mình sẽ giải thích cụ thể trong một bài viết về Spring Security) để ngăn việc truy cập ứng dụng mà chưa được phân quyền.
+
+Lúc này nếu các bạn truy cập vào url [http://localhost:8091/api/test](http://localhost:8091/api/test) thì ứng dụng sẽ tự động redirect sang trang đăng nhập [http://localhost:8091/login](http://localhost:8091/login).
+
+- Username: Mặc định là **user**
+
+- Password: Được sinh tự động như bên trên
+
+![structured blocks](/static/img/posts/springbootjwt/spring-boot-jwt-login.png)
+
+Các bạn nhập hai thông tin này để đăng nhập, sau khi đăng nhập thành công ứng dụng sẽ tự động redirect về url [http://localhost:8091/api/test/?continue](http://localhost:8091/api/test/?continue)
+
+![structured blocks](/static/img/posts/springbootjwt/spring-boot-jwt-redirect.png)
+
+**Lưu ý**: Trên môi trường production các bạn nên thay đổi thông tin user và password mặc định do Spring Security tự sinh ra. Cách đơn giản nhất là cấu hình trong file `application.properties` như sau:
+
+```properties
+spring.security.user.name=admin
+spring.security.user.password=Admin@123
+```
+
+## 4. Cấu hình Spring Security và JWT
+
+Để triển khai Spring Security chúng ta sẽ implement các class sau:
+
+![structured blocks](/static/img/posts/springbootjwt/spring-boot-jwt-security.png)
+
+### 4.1 - UserDetails
+
+- `UserDetails` là một interface được thiết kế riêng để sử dụng cho JWT trong việc biểu diễn những thông tin chi tiết của user. Ở đây, mình đã implement interface `UserDetails` thông qua class `UserDetailsImpl` để bổ sung một số phương thức.
+
+```java
+@AllArgsConstructor
+@Data
+public class UserDetailsImpl implements UserDetails {
+    @Serial
+    private static final long serialVersionUID = 1L;
+
+    private Long id;
+
+    private String username;
+
+    private String email;
+
+    @JsonIgnore
+    private String password;
+
+    private Collection<? extends GrantedAuthority> authorities;
+
+    private boolean enabled;
+
+    public static UserDetailsImpl build(User user) {
+        List<GrantedAuthority> authorities = user.getRoles().stream()
+                .map(role -> new SimpleGrantedAuthority(role.getName().name()))
+                .collect(Collectors.toList());
+
+        return new UserDetailsImpl(
+                user.getId(),
+                user.getUsername(),
+                user.getEmail(),
+                user.getPassword(),
+                authorities,
+                user.isEnabled());
+    }
+
+    @Override
+    public boolean isAccountNonExpired() {
+        return true;
+    }
+
+    @Override
+    public boolean isAccountNonLocked() {
+        return true;
+    }
+
+    @Override
+    public boolean isCredentialsNonExpired() {
+        return true;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
+        UserDetailsImpl user = (UserDetailsImpl) o;
+        return Objects.equals(id, user.id);
+    }
+}
+```
+
+### 4.2 - UserDetailsService
+
+- `UserDetailsServiceImpl` implement interface `UserDetailsService` và có trách nhiệm đọc thông tin của user từ database hoặc datasource.
+
+- Phương thức `UserDetails loadUserByUsername(String username)` được override từ interface `UserDetailsService` sẽ tìm kiếm user thông qua username (email) và trả một đối tượng `UserDetailsImpl` đã được định nghĩa ở trên.
+
+```java
+@Service
+public class UserDetailsServiceImpl implements UserDetailsService {
+    @Autowired
+    UserRepository userRepository;
+
+    @Override
+    @Transactional
+    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+        User user = userRepository.findByEmail(username)
+                .orElseThrow(() -> new UsernameNotFoundException("User Not Found with username: " + username));
+
+        return UserDetailsImpl.build(user);
+    }
+}
+```
+
+### 4.3 - JwtUtils
+
+- `JwtUtils` gồm một số phương thức được sử dụng để sinh token, trích xuất username từ token và kiểm tra xác thực token.
+
+- `generateJwtToken()`: Phương thức này được sử dụng khi người dùng thực hiện signin, nếu các thông tin đăng nhập là chính xác hàm này sẽ trả về một JWT token cho các lần truy cập tiếp theo. Cụ thể hơn mình sẽ cùng các bạn tìm hiểu ở phần 6.
+
+- `getUserNameFromJwtToken()`: Phương thức này được sử dụng để trích xuất thông tin username (email) khi người dùng sử dụng JWT token để request tài nguyên từ hệ thống.
+
+- `validateJwtToken()`: Phương thức này được sử dụng để kiểm tra tính hợp lệ của JWT token trước khi được token đó được sử dụng để trích xuất thông tin username (email).
+
+```java
+@Component
+public class JwtUtils {
+    private static final Logger logger = LoggerFactory.getLogger(JwtUtils.class);
+
+    @Value("${app.jwt.secret}")
+    private String jwtSecret;
+
+    @Value("${app.jwt.expiration}")
+    private int jwtExpirationMs;
+
+    public String generateJwtToken(Authentication authentication) {
+        UserDetailsImpl userPrincipal = (UserDetailsImpl) authentication.getPrincipal();
+
+        return Jwts.builder()
+                .setSubject((userPrincipal.getEmail()))
+                .setIssuedAt(new Date())
+                .setExpiration(new Date((new Date()).getTime() + jwtExpirationMs))
+                .signWith(key(), SignatureAlgorithm.HS256)
+                .compact();
+    }
+
+    private Key key() {
+        return Keys.hmacShaKeyFor(Decoders.BASE64.decode(jwtSecret));
+    }
+
+    public String getUserNameFromJwtToken(String token) {
+        return Jwts.parserBuilder().setSigningKey(key()).build()
+                .parseClaimsJws(token).getBody().getSubject();
+    }
+
+    public boolean validateJwtToken(String authToken) {
+        try {
+            Jwts.parserBuilder().setSigningKey(key()).build().parse(authToken);
+            return true;
+        } catch (MalformedJwtException e) {
+            logger.error("Invalid JWT token: {}", e.getMessage());
+        } catch (ExpiredJwtException e) {
+            logger.error("JWT token is expired: {}", e.getMessage());
+        } catch (UnsupportedJwtException e) {
+            logger.error("JWT token is unsupported: {}", e.getMessage());
+        } catch (IllegalArgumentException e) {
+            logger.error("JWT claims string is empty: {}", e.getMessage());
+        }
+
+        return false;
+    }
+}
+```
+
+**Lưu ý**: Trong class này các bạn định nghĩa hai thông tin là `jwt secret` và `jwt expriration` đọc từ file cấu hình để phục vụ cho việc sinh ra token. Ví dụ:
+
+```properties
+app.jwtSecret= ==================springboot=jwt=example========================
+app.jwtExpirationMs=86400000
+```
+
+### 4.4 - AuthenticationEntryPoint
+
+- `AuthEntryPointJwt` implement interface `AuthenticationEntryPoint` và override phương thức `commence()`. Class này được sử dụng để handle các exceptions liên quan tới việc authentication, đặc biệt là các trường hợp cố gắng truy cập các tài nguyên không có quyền (unauthorized resources), khi đó phương thức `commence()` sẽ được gọi.
+
+```java
+@Component
+public class AuthEntryPointJwt implements AuthenticationEntryPoint {
+    private static final Logger logger = LoggerFactory.getLogger(AuthEntryPointJwt.class);
+
+    @Override
+    public void commence(HttpServletRequest request, HttpServletResponse response, AuthenticationException authException)
+            throws IOException, ServletException {
+        logger.error("Unauthorized error: {}", authException.getMessage());
+
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+
+        final Map<String, Object> body = new HashMap<>();
+        body.put("status", HttpServletResponse.SC_UNAUTHORIZED);
+        body.put("error", "Unauthorized");
+        body.put("message", authException.getMessage());
+        body.put("path", request.getServletPath());
+
+        final ObjectMapper mapper = new ObjectMapper();
+        mapper.writeValue(response.getOutputStream(), body);
+    }
+
+}
+```
+
+### 4.5 - OncePerRequestFilter
+
+- `AuthenTokenFilter` implement abstract class `OncePerRequestFilter` và đóng vai trò như `người gác đền` của ứng dụng. Khi có bất cứ request nó sẽ đi qua phương thức `doFilterInternal()` trước tiên và thực hiện một số thao tác như:
+
+- Kiểm tra tính hợp lệ của token (validate JWT token)
+
+- Trích xuất thông tin username (email) (extract user's info)
+
+- Đọc thông tin user (load user details)
+
+- Setup context based cho việc xác thực thông qua các thông tin đã đọc được.
+
+```java
+public class AuthTokenFilter extends OncePerRequestFilter {
+    @Autowired
+    JwtUtils jwtUtils;
+
+    @Autowired
+    UserDetailsServiceImpl userDetailsService;
+
+    private static final Logger logger = LoggerFactory.getLogger(AuthTokenFilter.class);
+
+    @Override
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
+            throws ServletException, IOException {
+        try {
+            String jwt = parseJwt(request);
+            if (jwt != null && jwtUtils.validateJwtToken(jwt)) {
+                String username = jwtUtils.getUserNameFromJwtToken(jwt);
+
+                UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+                UsernamePasswordAuthenticationToken authentication =
+                        new UsernamePasswordAuthenticationToken(
+                                userDetails,
+                                null,
+                                userDetails.getAuthorities());
+                authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                SecurityContextHolder.getContext().setAuthentication(authentication);
+            }
+        } catch (Exception e) {
+            logger.error("Cannot set user authentication: {}", e);
+        }
+
+        filterChain.doFilter(request, response);
+    }
+
+    private String parseJwt(HttpServletRequest request) {
+        String headerAuth = request.getHeader("Authorization");
+
+        if (StringUtils.hasText(headerAuth) && headerAuth.startsWith("Bearer ")) {
+            return headerAuth.substring(7);
+        }
+
+        return null;
+    }
+}
+```
+
+### 4.6 - WebSecurityConfig
+
+- `WebSecurityConfig` đóng vai trò cấu hình Spring Security cho toàn bộ ứng dụng. Trong đó:
+
+- `@Configuration`: Đánh dấu đây là một class sử dụng cho việc configuration
+
+- `@EnableMethodSecurity`: Kích hoạt bảo mật cấp phương thức của Spring Security, cho phép bạn bảo mật các phương thức riêng lẻ bằng các chú thích như `@Secured`, `@PreAuthorize`
+
+- `filterChain(HttpSecurity http)`: Cấu hình các điều kiện filter.
+
+  - Vô hiệu hóa CSRF
+
+  - Cấu hình xử lý ngoại lệ sử dụng `AuthEntryPointJwt` để xác thực cho các request chưa được xác thực (unauthorized requests)
+
+  - Cấu hình ứng dụng sẽ không tạo hoặc sử dụng HTTP session để lưu trữ trạng thái xác thực người dùng
+
+  - Cấu hình các quy tắc ủy quyền, cho phép truy cập không cần xác thực tới endpoint `/api/auth` (xử lý các yêu cầu liên quan đến đăng ký và đăng nhập) và các yêu cầu xác thực khác.
+
+- Ngoài trong class này chúng ta cũng khởi tạo một số bean cho các class đã được định nghĩa ở trên.
+
+```java
+@Configuration
+@EnableMethodSecurity
+public class WebSecurityConfig {
+    @Autowired
+    UserDetailsServiceImpl userDetailsService;
+
+    @Autowired
+    private AuthEntryPointJwt unauthorizedHandler;
+
+    @Bean
+    public AuthTokenFilter authenticationJwtTokenFilter() {
+        return new AuthTokenFilter();
+    }
+
+    @Bean
+    public DaoAuthenticationProvider authenticationProvider() {
+        DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
+
+        authProvider.setUserDetailsService(userDetailsService);
+        authProvider.setPasswordEncoder(passwordEncoder());
+
+        return authProvider;
+    }
+
+    @Bean
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration authConfig) throws Exception {
+        return authConfig.getAuthenticationManager();
+    }
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+
+    @Bean
+    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        http.csrf(AbstractHttpConfigurer::disable)
+                .exceptionHandling(exception -> exception.authenticationEntryPoint(unauthorizedHandler))
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth ->
+                        auth.requestMatchers("/api/auth/**").permitAll()
+                                .anyRequest().authenticated()
+                );
+
+        http.authenticationProvider(authenticationProvider());
+
+        http.addFilterBefore(authenticationJwtTokenFilter(), UsernamePasswordAuthenticationFilter.class);
+
+        return http.build();
+    }
+}
+```
+
+Đến đây, chúng ta đã hoàn thành việc cấu hình Spring Security cho ứng dụng Spring Boot. Bây giờ, chạy ứng dụng và truy cập endpoint [http://localhost:8091/api/test](http://localhost:8091/api/test) các bạn sẽ thấy.
+
+```json
+{
+  "path": "/api/test",
+  "error": "Unauthorized",
+  "message": "Full authentication is required to access this resource",
+  "status": 401
+}
+```
+
+Vì chúng ta không chỉ định endpoint [http://localhost:8091/api/test](http://localhost:8091/api/test) trong filter của class `WebSecurityConfig` nên nó sẽ kiểm tra chuỗi JWT để xác thực, và chúng ta cũng không gửi JWT nào theo request nên lỗi được trả về bởi `AuthenticationEntryPoint`.
+
+## 5. Đăng ký (SignUp)
+
+### 5.1 - Flow
+
+![structured blocks](/static/img/posts/springbootjwt/spring-boot-jwt-signup.png)
+
+### 5.2 - Setting up.
+
+- Trước tiên chúng ta định nghĩa các class xử lý ngoại lệ `UserAlreadyExistsException`, `RoleNotFoundException` và `GlobalExceptionHandler`
+
+```java
+public class UserAlreadyExistsException extends Exception {
+    public UserAlreadyExistsException(String message) {
+        super(message);
+    }
+}
+```
+
+```java
+public class RoleNotFoundException extends Exception {
+    public RoleNotFoundException(String message) {
+        super(message);
+    }
+}
+```
+
+- `GlobalExceptionHandler` sẽ handle exception ở cấp độ toàn bộ ứng dụng với 3 trường hợp sau:
+
+  - `MethodArgumentNotValidExceptionHandler` handle exception trong trường hợp người dùng gửi sai định dạng dữ liệu khi đăng ký bằng việc sử dụng annotation @Valid.
+
+  - `UserAlreadyExistsExceptionHandler` handle exception trong trường hợp người dùng đăng ký với thông tin username (email) đã tồn tại.
+
+  - `RoleNotFoundExceptionHandler` handle exception trong trường hợp người dùng đăng ký một role không tồn tại.
+
+```java
+@RestControllerAdvice
+public class GlobalExceptionHandler {
+    @ExceptionHandler(value = MethodArgumentNotValidException.class)
+    public ResponseEntity<ApiResponseDto<?>> MethodArgumentNotValidExceptionHandler(MethodArgumentNotValidException exception) {
+
+        List<String> errorMessage = new ArrayList<>();
+
+        exception.getBindingResult().getFieldErrors().forEach(error -> {
+            errorMessage.add(error.getDefaultMessage());
+        });
+        return ResponseEntity
+                .badRequest()
+                .body(
+                        ApiResponseDto.builder()
+                                .status(String.valueOf(ResponseStatus.FAIL))
+                                .message("Registration Failed: Please provide valid data.")
+                                .response(errorMessage)
+                                .build()
+                );
+    }
+
+    @ExceptionHandler(value = UserAlreadyExistsException.class)
+    public ResponseEntity<ApiResponseDto<?>> UserAlreadyExistsExceptionHandler(UserAlreadyExistsException exception) {
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .body(
+                        ApiResponseDto.builder()
+                                .status(String.valueOf(ResponseStatus.FAIL))
+                                .message(exception.getMessage())
+                                .build()
+                );
+    }
+
+    @ExceptionHandler(value = RoleNotFoundException.class)
+    public ResponseEntity<ApiResponseDto<?>> RoleNotFoundExceptionHandler(RoleNotFoundException exception) {
+        return ResponseEntity
+                .status(HttpStatus.NOT_FOUND)
+                .body(
+                        ApiResponseDto.builder()
+                                .status(String.valueOf(ResponseStatus.FAIL))
+                                .message(exception.getMessage())
+                                .build()
+                );
+    }
+}
+```
+
+- Một user có thể có nhiều role, trong bài viết này mình định nghĩa 3 roles trong enum `ERole` là `ROLE_USER`, `ROLE_ADMIN` và `ROLE_SUPER_ADMIN`. Khi đó, nếu muốn tạo một user, client cũng phải định nghĩa role của user đó trước. Vì vậy, chúng ta tạo class `RoleFactory` để trả về các roles tương ứng khi client định nghĩa.
+
+```java
+@Component
+public class RoleFactory {
+    @Autowired
+    RoleRepository roleRepository;
+
+    public Role getInstance(String role) throws RoleNotFoundException {
+        switch (role) {
+            case "admin" -> {
+                return roleRepository.findByName(ERole.ROLE_ADMIN);
+            }
+            case "user" -> {
+                return roleRepository.findByName(ERole.ROLE_USER);
+            }
+            case "super_admin" -> {
+                return roleRepository.findByName(ERole.ROLE_SUPER_ADMIN);
+            }
+            default -> throw new RoleNotFoundException("Role not found for " +  role);
+        }
+    }
+}
+```
+
+- Ở class `RoleFactory` chúng ta sử dụng method `findByName()` để tìm `Role` tương ứng được client truyền xuống. Nhưng chỉ khi các roles này đã được thêm vào database thì method `findByName()` mới trả về kết quả còn không nó sẽ bắn exception.
+
+- Để khắc phục điều đó, và tránh quên việc thêm role data trước khi khởi chạy ứng dụng ở các môi trường khác nhau chúng ta tạo class `RoleDataSeeder` cho việc khởi tạo đó.
+
+```java
+@Component
+public class RoleDataSeeder {
+    @Autowired
+    private RoleRepository roleRepository;
+
+    @EventListener
+    @Transactional
+    public void LoadRoles(ContextRefreshedEvent event) {
+
+        List<ERole> roles = Arrays.stream(ERole.values()).toList();
+
+        for(ERole erole: roles) {
+            if (roleRepository.findByName(erole)==null) {
+                roleRepository.save(new Role(erole));
+            }
+        }
+
+    }
+}
+```
+
+- Tiếp theo chúng ta định nghĩa class `SignUpRequestDto` là một DTO (Data Transfer Object) chứa các trường thông tin cần thiết cho việc signup.
+
+- **Lưu ý**: Không nên sử dụng dụng trực tiếp entity `User` trong trường này vì bản chất Entity sử dụng tương tác với database không phải để chuyển đổi dữ liệu.
+
+```java
+@Data
+@AllArgsConstructor
+@NoArgsConstructor
+public class SignUpRequestDto {
+    @NotBlank(message = "Username is required!")
+    @Size(min= 3, message = "Username must have atleast 3 characters!")
+    @Size(max= 20, message = "Username can have have atmost 20 characters!")
+    private String username;
+
+    @Email(message = "Email is not in valid format!")
+    @NotBlank(message = "Email is required!")
+    private String email;
+
+    @NotBlank(message = "Password is required!")
+    @Size(min = 8, message = "Password must have atleast 8 characters!")
+    @Size(max = 20, message = "Password can have have atmost 20 characters!")
+    private String password;
+
+    private Set<String> roles;
+}
+```
+
+- Mọi thứ đã chuẩn bị xong, bây chúng ta viết logic cho việc xử lý signup thông qua class `AuthServiceImpl` được implement từ interface `AuthService`
+
+```java
+@Service
+public interface AuthService {
+    ResponseEntity<ApiResponseDto<?>> signUp(SignUpRequestDto signUpRequestDto) throws UserAlreadyExistsException, RoleNotFoundException;
+}
+```
+
+- Quá trình signup gồm có 4 bước:
+
+  - 1. Kiểm tra username và email đã tồn tại chưa?
+
+  - 2. Nếu user và email chưa tồn tại thì tạo đối tượng `User` từ các thông tin đó.
+
+  - 3. Lưu thông tin user vừa tạo vào database.
+
+  - 4. Trả về kết quả cho client.
+
+```java
+@Component
+public class AuthServiceImpl implements AuthService {
+    @Autowired
+    private UserService userService;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private RoleFactory roleFactory;
+
+    @Override
+    public ResponseEntity<ApiResponseDto<?>> signUp(SignUpRequestDto signUpRequestDto)
+            throws UserAlreadyExistsException, RoleNotFoundException {
+
+        // (1)
+        if (userService.existByEmail(signUpRequestDto.getEmail())) {
+            throw new UserAlreadyExistsException("Registration Failed: Provided email already exists. Try sign in or provide another email.");
+        }
+        if (userService.existByUsername(signUpRequestDto.getUsername())) {
+            throw new UserAlreadyExistsException("Registration Failed: Provided username already exists. Try sign in or provide another username.");
+        }
+
+        // (2)
+        User user = createUser(signUpRequestDto);
+
+        // (3)
+        userService.save(user);
+
+        // (4)
+        return ResponseEntity.status(HttpStatus.CREATED).body(
+                ApiResponseDto.builder()
+                        .status(String.valueOf(ResponseStatus.SUCCESS))
+                        .message("User account has been successfully created!")
+                        .build()
+        );
+    }
+
+    private User createUser(SignUpRequestDto signUpRequestDto) throws RoleNotFoundException {
+        return User.builder()
+                .email(signUpRequestDto.getEmail())
+                .username(signUpRequestDto.getUsername())
+                .password(passwordEncoder.encode(signUpRequestDto.getPassword()))
+                .enabled(true)
+                .roles(determineRoles(signUpRequestDto.getRoles()))
+                .build();
+    }
+
+    private Set<Role> determineRoles(Set<String> strRoles) throws RoleNotFoundException {
+        Set<Role> roles = new HashSet<>();
+
+        if (strRoles == null) {
+            roles.add(roleFactory.getInstance("user"));
+        } else {
+            for (String role : strRoles) {
+                roles.add(roleFactory.getInstance(role));
+            }
+        }
+        return roles;
+    }
+}
+```
+
+- Cuối cùng là class `AuthController` cung cấp endpoint cho việc đăng nhập và đăng ký. Với hàm đăng ký (signup) chúng ta viết như sau:
+
+```java
+@RestController
+@CrossOrigin("*")
+@RequestMapping("/api/auth")
+public class AuthController {
+    @Autowired
+    private AuthService authService;
+
+    @PostMapping("/sign-up")
+    public ResponseEntity<ApiResponseDto<?>> registerUser(@RequestBody @Valid SignUpRequestDto signUpRequestDto)
+            throws UserAlreadyExistsException, RoleNotFoundException {
+        return authService.signUp(signUpRequestDto);
+    }
+}
+```
+
+Đến đây việc cài đặt hàm signup đã hoàn tất, bây giờ chạy ứng dụng lên và chúng ta sẽ thực hiện một số kịch bản test cho hàm này.
+
+### 5.3 - Testing
+
+Mình sẽ thực hiện 6 testcases như sau:
+
+**TestCase 1:** Cung cấp đầy đủ username, email, password đúng định dạng -> User được tạo với role mặc định là user.
+
+```json
+//Request:
+curl --location 'http://localhost:8090/api/auth/sign-up' \
+--header 'Content-Type: application/json' \
+--data-raw '{
+    "username": "usertest01",
+    "email": "usertest01@gmail.com",
+    "password": "123456a@"
+}'
+// Response:
+{
+  "status": "SUCCESS",
+  "message": "User account has been successfully created!",
+  "response": null
+}
+```
+
+**TestCase 2:** Cung cấp đầy đủ username, email, password đúng định dạng và chỉ 1 role hợp lệ duy nhất -> User được tạo với duy nhất role đó.
+
+```json
+// Request:
+curl --location 'http://localhost:8090/api/auth/sign-up' \
+--header 'Content-Type: application/json' \
+--data-raw '{
+    "username": "usertest02",
+    "email": "usertest02@gmail.com",
+    "password": "123456a@",
+    "roles": ["admin"]
+}'
+// Response:
+{
+  "status": "SUCCESS",
+  "message": "User account has been successfully created!",
+  "response": null
+}
+```
+
+**TestCase 3:** Cung cấp đầy đủ username, email, password đúng định dạng và danh sách nhiều roles hợp lệ -> User được tạo với danh sách các roles đã cung cấp.
+
+```json
+// Request:
+curl --location 'http://localhost:8090/api/auth/sign-up' \
+--header 'Content-Type: application/json' \
+--data-raw '{
+    "username": "usertest03",
+    "email": "usertest03@gmail.com",
+    "password": "123456a@",
+    "roles": ["user", "admin"]
+}'
+// Response:
+{
+  "status": "SUCCESS",
+  "message": "User account has been successfully created!",
+  "response": null
+}
+```
+
+**TestCase 4:** Cung cấp username, email hoặc password sai định dạng -> Trả về thông báo user cung cấp thông tin sai yêu cầu.
+
+```json
+// Request:
+curl --location 'http://localhost:8090/api/auth/sign-up' \
+--header 'Content-Type: application/json' \
+--data-raw '{
+    "username": "usertest04",
+    "email": "usertest04gmail",
+    "password": "456a@"
+}'
+// Response:
+{
+    "status": "FAIL",
+    "message": "Registration Failed: Please provide valid data.",
+    "response": [
+        "Email is not in valid format!",
+        "Password must have atleast 8 characters!"
+    ]
+}
+```
+
+**TestCase 5:** Cung cấp email đã được đăng ký thành công trước đó -> Trả về thông báo email đã được đăng ký.
+
+```json
+// Request:
+curl --location 'http://localhost:8090/api/auth/sign-up' \
+--header 'Content-Type: application/json' \
+--data-raw '{
+    "username": "usertest05",
+    "email": "usertest01@gmail.com",
+    "password": "123456a@"
+}'
+// Response:
+{
+    "status": "FAIL",
+    "message": "Registration Failed: Provided email already exists. Try sign in or provide another email.",
+    "response": null
+}
+```
+
+**TestCase 6:** Cung cấp sai thông tin role -> Trả về thông báo role không tồn tại.
+
+```json
+// Request:
+curl --location 'http://localhost:8090/api/auth/sign-up' \
+--header 'Content-Type: application/json' \
+--data-raw '{
+    "username": "usertest06",
+    "email": "usertest06@gmail.com",
+    "password": "123456a@",
+    "roles": ["test"]
+}'
+// Response:
+{
+    "status": "FAIL",
+    "message": "No role found for test",
+    "response": null
+}
+```
+
+Vậy là xong phần đăng ký (signup) rồi, hơi dài nhỉ. Mình viết còn thấy mỏi cả tay rồi, thôi thì kiếm miếng nước ngồi đọc tiếp các bạn nhé.
+
+## 6. Đăng nhập (SignIn)
+
+### 6.1 - Flow
+
+![structured blocks](/static/img/posts/springbootjwt/spring-boot-jwt-signin.png)
+
+### 6.2 - Setting up
+
+- Đầu tiên chúng ta định nghĩa class `SignInRequestDto` và `SignInResponseDto` là các DTO để handle các thông tin đăng nhập (email, password) cũng như kết quả trả về cho client.
+
+```java
+@Data
+@AllArgsConstructor
+public class SignInRequestDto {
+    @NotBlank(message = "Email is required!")
+    private String email;
+
+    @NotBlank(message = "Password is required!")
+    private String password;
+}
+```
+
+```java
+@Data
+@Builder
+public class SignInResponseDto {
+    private String token;
+    private String type = "Bearer";
+    private Long id;
+    private String username;
+    private String email;
+    private List<String> roles;
+}
+```
+
+- Bổ sung phương thức `signIn()` cho interface `AuthService`.
+
+```java
+@Service
+public interface AuthService {
+    ResponseEntity<ApiResponseDto<?>> signUp(SignUpRequestDto request) throws UserAlreadyExistsException, RoleNotFoundException;
+
+    ResponseEntity<ApiResponseDto<?>> signIn(SignInRequestDto request);
+}
+```
+
+- Sau đó implement phương thức này ở class `AuthServiceImpl` như sau:
+
+  - (1): Xác thực thông tin đăng nhập bằng cách tạo một đối tượng `UsernamePasswordAuthenticationToken` từ email và mật khẩu. Sau đó, sử dụng `authenticationManager` để xác thực thông tin này và trả về đối tượng `Authentication`.
+
+  - (2): Đặt đối tượng `Authentication` vào `SecurityContext` để quản lý bảo mật cho session hiện tại.
+
+  - (3): Tạo một JSON Web Token (JWT) từ thông tin xác thực.
+
+  - (4): Lấy thông tin chi tiết của người dùng từ đối tượng `Authentication`.
+
+  - (5): Lấy danh sách các roles của người dùng và chuyển đổi từ set sang list.
+
+  - (6): Khởi tạo đối tượng `SignInResponseDto` để trả về kết quả cho client.
+
+```java
+@Component
+public class AuthServiceImpl implements AuthService {
+    @Autowired
+    private UserService userService;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private RoleFactory roleFactory;
+
+    @Autowired
+    private AuthenticationManager authenticationManager;
+
+    @Autowired
+    private JwtUtils jwtUtils;
+
+    //sign up methods
+
+    @Override
+    public ResponseEntity<ApiResponseDto<?>> signIn(SignInRequestDto signInRequestDto) {
+
+        // (1)
+        Authentication authentication = authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(signInRequestDto.getEmail(), signInRequestDto.getPassword()));
+
+        // (2)
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+
+        // (3)
+        String jwt = jwtUtils.generateJwtToken(authentication);
+
+        // (4)
+        UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
+
+        // (5)
+        List<String> roles = userDetails.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .collect(Collectors.toList());
+
+        // (6)
+        SignInResponseDto signInResponseDto = SignInResponseDto.builder()
+                .username(userDetails.getUsername())
+                .email(userDetails.getEmail())
+                .id(userDetails.getId())
+                .token(jwt)
+                .type("Bearer")
+                .roles(roles)
+                .build();
+
+        return ResponseEntity.ok(
+                ApiResponseDto.builder()
+                        .status(String.valueOf(ResponseStatus.SUCCESS))
+                        .message("Sign in successfull!")
+                        .response(signInResponseDto)
+                        .build()
+        );
+    }
+}
+```
+
+- Cuối cùng là bổ sung phương thức `signin()` cho endpoint `/api/auth/sign-in` thuộc controller `AuthController`.
+
+```java
+@RestController
+@RequestMapping("/api/auth")
+public class AuthController {
+    @Autowired
+    private AuthService authService;
+
+    // sign-up method
+
+    @PostMapping("/sign-in")
+    public ResponseEntity<ApiResponseDto<?>> signInUser(@RequestBody @Valid SignInRequestDto signInRequestDto){
+        return authService.signIn(signInRequestDto);
+    }
+}
+```
+
+### 6.3 - Testing
+
+Mình sẽ thực hiện 2 testcases đối với luồng sign in này.
+
+**TestCase 1:** Cung cấp email hoặc password không chính xác -> Trả về thông báo lỗi.
+
+```json
+// Request:
+curl --location 'http://localhost:8090/api/auth/sign-in' \
+--header 'Content-Type: application/json' \
+--data-raw '{
+    "email": "usertestx@gmail.com",
+    "password": "123456a@"
+}'
+// Response:
+{
+    "path": "/api/auth/sign-in",
+    "error": "Unauthorized",
+    "message": "Bad credentials",
+    "status": 401
+}
+```
+
+**TestCase 2:** Cung cấp email hoặc password đã được đăng ký thành công -> Trả về thông tin đăng nhập kèm token cho client.
+
+```json
+// Request:
+curl --location 'http://localhost:8090/api/auth/sign-in' \
+--header 'Content-Type: application/json' \
+--data-raw '{
+    "email": "usertest01@gmail.com",
+    "password": "123456a@"
+}'
+// Response:
+{
+    "status": "SUCCESS",
+    "message": "Sign in successfull!",
+    "response": {
+        "token": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1c2VydGVzdDAxQGdtYWlsLmNvbSIsImlhdCI6MTcxNzk5MjI2MiwiZXhwIjoxNzE4MDc4NjYyfQ.HH-oQUx_eFwb9SRk4ARwDS8aVV8ttjYPOTDC7CCzmgY",
+        "type": "Bearer",
+        "id": 5,
+        "username": "usertest01",
+        "email": "usertest01@gmail.com",
+        "roles": [
+            "ROLE_USER"
+        ]
+    }
+}
+```
+
+Vậy là xong phần đăng nhập (sign in). Tiếp theo chúng ta sẽ test việc truy cập các tài nguyên của hệ thống sau khi client có được JWT.
+
+## 7. Truy cập tài nguyên thông qua JWT
+
+Trong phần này mình sẽ bổ sung một số phương thức cho class `TestController` để kiểm tra việc phân quyền khi truy cập tài nguyên hệ thống với JWT được trả về theo các role cụ thể.
+
+### 7.1 - Setting up
+
+- (1): `/api/test/user` -> chỉ user có role `ROLE_USER` có thể truy cập.
+
+- (2): `/api/test/admin` -> chỉ user có role `ROLE_ADMIN` có thể truy cập.
+
+- (3): `/api/test/super-admin` -> chỉ user có role `ROLE_SUPER_ADMIN` có thể truy cập.
+
+- (4): `/api/test/admin-or-super-admin` -> chỉ user có role `ROLE_ADMIN` hoặc `ROLE_SUPER_ADMIN` có thể truy cập.
+
+```java
+@CrossOrigin(origins = "*")
+@RestController
+@RequestMapping("/api/test")
+public class TestController {
+
+    // (1) Only users with 'ROLE_USER' role can access this end point
+    @GetMapping("/user")
+    @PreAuthorize("hasRole('ROLE_USER')")
+    public ResponseEntity<ApiResponseDto<?>> UserDashboard() {
+        return ResponseEntity
+                .status(HttpStatus.OK)
+                .body(ApiResponseDto.builder()
+                        .status(String.valueOf(ResponseStatus.SUCCESS))
+                        .message("User dashboard!")
+                        .build());
+    }
+
+    // (2) Only users with 'ROLE_ADMIN' role can access this end point'
+    @GetMapping("/admin")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    public ResponseEntity<ApiResponseDto<?>> AdminDashboard() {
+        return ResponseEntity
+                .status(HttpStatus.OK)
+                .body(ApiResponseDto.builder()
+                        .status(String.valueOf(ResponseStatus.SUCCESS))
+                        .message("Admin dashboard!")
+                        .build());
+    }
+
+    // (3) Only users with 'ROLE_SUPER_ADMIN' role can access this end point'
+    @GetMapping("/super-admin")
+    @PreAuthorize("hasRole('ROLE_SUPER_ADMIN')")
+    public ResponseEntity<ApiResponseDto<?>> SuperAdminDashboard() {
+        return ResponseEntity
+                .status(HttpStatus.OK)
+                .body(ApiResponseDto.builder()
+                        .status(String.valueOf(ResponseStatus.SUCCESS))
+                        .message("Super Admin dashboard!")
+                        .build());
+    }
+
+    // (4) Users with 'ROLE_SUPER_ADMIN' or 'ROLE_ADMIN' roles can access this end point'
+    @GetMapping("/admin-or-super-admin")
+    @PreAuthorize("hasRole('ROLE_USER') or hasRole('ROLE_ADMIN')")
+    public ResponseEntity<ApiResponseDto<?>> AdminOrSuperAdminContent() {
+        return ResponseEntity
+                .status(HttpStatus.OK)
+                .body(ApiResponseDto.builder()
+                        .status(String.valueOf(ResponseStatus.SUCCESS))
+                        .message("Admin or Super Admin Content!")
+                        .build());
+    }
+}
+```
+
+### 7.2 - Testing
+
+**TestCase 1:** Endpoint: `/api/test/user` -> chỉ user có role `ROLE_USER` có thể truy cập.
+
+```json
+// Request:
+curl --location 'http://localhost:8090/api/test/user' \
+--header 'Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1c2VydGVzdDAxQGdtYWlsLmNvbSIsImlhdCI6MTcxODAwMDcyNSwiZXhwIjoxNzE4MDg3MTI1fQ.NF2aT4uezug0bcZeQ7hxitt_53iixhHI56XOSIo4yec'
+// Response:
+{
+    "status": "SUCCESS",
+    "message": "User dashboard!",
+    "response": null
+}
+```
+
+**TestCase 2:** Endpoint: `/api/test/admin` -> chỉ user có role `ROLE_ADMIN` có thể truy cập.
+
+```json
+// Request:
+curl --location 'http://localhost:8090/api/test/admin' \
+--header 'Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1c2VydGVzdDA5QGdtYWlsLmNvbSIsImlhdCI6MTcxODAwMTc2OCwiZXhwIjoxNzE4MDg4MTY4fQ.LWHhzlCzlCOJVfmfJzfub_DzManlQsXVPjCgClW1OlE'
+// Response:
+{
+    "status": "SUCCESS",
+    "message": "Admin dashboard!",
+    "response": null
+}
+```
+
+**TestCase 3:** Endpoint: `/api/test/super-admin` -> chỉ user có role `ROLE_SUPER_ADMIN` có thể truy cập.
+
+```json
+// Request:
+curl --location 'http://localhost:8090/api/test/super-admin' \
+--header 'Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1c2VydGVzdDA5QGdtYWlsLmNvbSIsImlhdCI6MTcxODAwMTc2OCwiZXhwIjoxNzE4MDg4MTY4fQ.LWHhzlCzlCOJVfmfJzfub_DzManlQsXVPjCgClW1OlE'
+// Response:
+{
+    "status": "SUCCESS",
+    "message": "Super Admin dashboard!",
+    "response": null
+}
+```
+
+**TestCase 4:** Endpoint: `/api/test/admin-or-super-admin` -> chỉ user có role `ROLE_ADMIN` hoặc `ROLE_SUPER_ADMIN` có thể truy cập.
+
+```json
+// Request:
+curl --location 'http://localhost:8090/api/test/admin-or-super-admin' \
+--header 'Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1c2VydGVzdDA5QGdtYWlsLmNvbSIsImlhdCI6MTcxODAwMTc2OCwiZXhwIjoxNzE4MDg4MTY4fQ.LWHhzlCzlCOJVfmfJzfub_DzManlQsXVPjCgClW1OlE'
+// Response:
+{
+    "status": "SUCCESS",
+    "message": "Admin or Super Admin Content!",
+    "response": null
+}
+```
+
+## 8. Tổng kết
+
+Vậy là qua bài viết này mình đã cùng các bạn thực hiện cấu hình Spring Security cũng như JWT cho một ứng dụng Spring Boot. Trên thực tế việc cấu hình sẽ phức tạp hợn rất nhiều nhưng về cơ bản sẽ gồm các bước như mình trình bày bên trên. Bài viết tuy hơi dài nhưng hi vọng các bạn sẽ chắt lọc được những kiến bổ ích.
+
+**Source Code:**
+
+- Các bạn có thể tham khảo [source code](https://github.com/canhnd15/spring-security-jwt)
+
+Hẹn gặp lại các bạn trong các bài viết tiếp theo.
