@@ -1,0 +1,475 @@
+---
+title: '[Hibernate] - Bài toán N+1 queries trong JPA và Hibernate.'
+date: '2024-06-18'
+lastmod: '2024-06-18'
+tags: ['Hibernate', 'JPA']
+draft: false
+summary: Trong bài viết này mình sẽ cùng các bạn bàn về bài toán N+1 queries và tìm hiểu xem data access framework như Hibernate xử lý bài toán này như thế nào, bản chât chất của những cách xử lý đó là gì?.
+images: ['/static/img/prompts/structured-blocks-cover.png']
+layout: PostLayout
+---
+
+<TOCInline toc={props.toc} asDisclosure toHeading={3} />
+
+# 1. Sự ngây ngô và điểm D môn lập trình web?
+
+Để hiểu bài toán N+1 queries là gì thì mình lấy ví dụ như thế này.
+
+Hồi đi học, có môn lập trình web, thầy giáo thường yêu cầu cả lớp mình code chay, không sử dụng framework gì hết. Lần đó nhóm mình được yêu cầu làm một trang tin tức có hai đối tượng chính là `Post` và `Comment`. Cả nhóm hí hửng làm, giao diện đẹp, chạy mượt nên chắc mẩm là sẽ A hoặc A+ nhưng không...
+
+Thầy chả thèm ngó ứng dụng mà vô coi source code xem chúng mài code thế nào. Và câu chuyện là...
+
+Tính năng kiểm duyệt comment của bài viết được một bạn trong nhóm code như sau:
+
+1. Lấy toàn bộ comments đang chờ duyệt:
+
+```SQL
+SELECT c.id, c.content, c.post_id as postId FROM tbl_comments c WHERE c.status = 'PENDING';
+```
+
+3. Sau khi có danh sách comments thì lấy thông tin về bài viết chứa comment đó:
+
+```SQL
+SELECT p.title, p.slug FROM tbl_posts p WHERE p.id = :postId;
+```
+
+- Thầy hỏi, bây giờ thầy lấy 10 comments ra để duyệt. Vậy thì ứng dụng của các em sẽ thực thi bao nhiêu câu lệnh SQL?
+
+- Nghe câu hỏi là mình biết lần này xong rồi, nhưng vẫn trả lời: "11 ạ!". Thầy hỏi tiếp:"Sao lại là 11?".
+
+- Mình trả lời:"Gồm có 1 câu lệnh lấy ra danh sách các comments và mỗi comment trong vòng lặp sẽ thêm một câu lệnh select lấy thông tin bài viết tương ứng, 10 comments thì sẽ thực thi 10 + 1 = 11 câu lệnh ạ.".
+
+- Thầy hỏi:"Thế làm vậy có tối ưu không?"
+
+- Bạn trong nhóm (làm tính năng đó) trả lời:"Do ban đầu bọn em chỉ định lấy thông tin comment nên mới viết 1 câu sql. Nhưng sau đó muốn lấy thêm thông tin bài viết nhưng không muốn sửa câu sql nên em mới sử dụng vòng lặp ạ".
+
+- Thôi xong...! Bạn tôi báo quá rồi. Lúc đó mình đã ra hiệu đừng giải thích nữa mà ông bạn vẫn nói.
+
+- Thầy chốt:"Em biết làm thế này là không tối ưu mà vẫn làm! Chỗ này chỉ cần sử dụng câu lệnh join hai bảng vậy mà lại lặp thế này. Nhỡ có hàng trăm comments thì sẽ thực thi bao nhiêu câu lệnh sql? Fix như thế này là em chỉ fix phần ngọn mà không quan tâm đến hiệu năng hệ thống."
+
+Chắc các bạn cũng biết kết cục như nào rồi! Và theo như thầy nói thì chỉ cần sử dụng `JOIN` là xong:
+
+```SQL
+SELECT
+    c.id,
+    c.content,
+    c.post_id as postId ,
+    p.title,
+    p.slug
+FROM tbl_comments c JOIN tbl_posts p ON c.post_id = p.id
+WHERE c.status = 'PENDING';
+```
+
+> Đây cũng chính là bài toán N+1 queries mà mình muốn đề cập. Đó là trường hợp chúng ta thực hiện thêm N câu queries để lấy cùng một dữ liệu mà lẽ ra có thể lấy chỉ bởi một câu query.
+
+Nhưng theo các bạn liệu ăn con D có đáng không? Hay chỉ là lúc đó chưa đủ kiến thức để "bật thầy"? Các data access framework xử lý bài toán này như thế nào? Liệu có phải lúc nào N+1 queries cũng là không tốt?
+
+# 2. Framework xử lý bài toán N+1 queries như thế nào?
+
+Đối với mỗi ngôn ngữ lập trình thường sẽ có những data access frameworks đặc trưng và hầu như đều phải đối mặt với bài toán N+1 queries. Bài viết này mình sẽ lấy ví dụ với JPA và Hibernate.
+
+Setup một ứng dụng Spring Boot kết nối với cơ sở dữ liệu `MariaDB` để ví dụ.
+
+- Các bạn có thể tạo mới một ứng dụng Spring Boot tại https://start.spring.io/ và sử dụng các dependencies sau:
+
+```xml
+<dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.mariadb.jdbc</groupId>
+            <artifactId>mariadb-java-client</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+</dependencies>
+```
+
+- Cấu hình file `application.yml` kết nối tới cơ sở dữ liệu:
+
+```yml
+spring:
+  datasource:
+    url: jdbc:mariadb://localhost:3306/<your database>?useSSL=false
+    username: <your username>
+    password: <your password>
+  jpa:
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MariaDBDialect
+    hibernate:
+      ddl-auto: update
+```
+
+- Giả sử chúng ta đang phát triển một trang tin tức và có hai đối tượng chính:
+
+  - `Post` : mô tả một bài viết.
+  - `Comment` : mô tả một bình luận.
+
+- Quan hệ giữa `Post` và `Comment` là `1-n` (một bài viết có thể có nhiều bình luận).
+
+- Mình sẽ tạo hai entities cho hai đối tượng `Post` và `Comment` đơn giản như sau:
+
+```Java
+@Setter
+@Getter
+@Entity(name = "Post")
+@Table(name = "tbl_posts")
+public class Post {
+    @Id
+    private Long id;
+
+    private String title;
+
+    private String slug;
+
+    @OneToMany(mappedBy = "post")
+    private List<Comment> comments;
+}
+
+@Setter
+@Getter
+@Entity(name = "Comment")
+@Table(name = "tbl_comments")
+public class Comment {
+    @Id
+    private Long id;
+
+    private String content;
+
+    private String status;
+
+    @ManyToOne
+    private Post post;
+}
+```
+
+- `@ManyToOne` và `@OneToMany` được sử dụng để mô tả mối quan hệ `1-n` giữa `Post` và `Comment`.
+
+- Trong Hibernate, FetchType là một thuộc tính trong các annotation `@OneToOne`, `@OneToMany`, `@ManyToOne`, `@ManyToMany` được dùng để định nghĩa cách thức lấy thông tin các đối tượng liên quan. FetchType có hai loại đó là `FetchType.EAGER` và `FetchType.EAGER`.
+- Tại sao lại nói về hai loại fetch type này? Chúng có liên quan gì đến bài toán N+1 queries trong Hibernate nói riêng?
+
+## 2.1 - FetchType.EAGER
+
+- Trong Hibernate, mặc định `@OneToOne` và `@ManyToOne` sẽ sử dụng fetch type là `FetchType.EAGER`. Tức là nếu các bạn khai báo `@ManyToOne` thì ngầm định sẽ là `@ManyToOne(fetch = FetchType.EAGER)`.
+
+- `FetchType.EAGER` có tác dụng gì?
+
+- Đó là thực hiện load toàn bộ dữ liệu liên quan khi thực hiện truy vấn câu truy vấn. Nhưng điều quan trọng là việc load dữ liệu này được thực hiện "âm thầm" bởi Hibernate. Ví dụ, mình thực hiện truy vấn lấy toàn bộ danh sách comment như sau:
+
+```java
+@Repository
+public class CommentRepository {
+    @Autowired
+    EntityManager em;
+
+    public List<Comment> getComments() {
+        return  em.createQuery("""
+                        select c from Comment c
+                        """, Comment.class)
+                .getResultList();
+    }
+}
+```
+
+- Và đây là những câu lệnh Hibernate đã thực thi.
+
+```logs
+Hibernate: select c1_0.id,c1_0.content,c1_0.post_id,c1_0.status from tbl_comments c1_0
+Hibernate: select p1_0.id,p1_0.slug,p1_0.title from tbl_posts p1_0 where p1_0.id=?
+Hibernate: select p1_0.id,p1_0.slug,p1_0.title from tbl_posts p1_0 where p1_0.id=?
+Hibernate: select p1_0.id,p1_0.slug,p1_0.title from tbl_posts p1_0 where p1_0.id=?
+Hibernate: select p1_0.id,p1_0.slug,p1_0.title from tbl_posts p1_0 where p1_0.id=?
+```
+
+=> Rõ ràng mình chỉ thực thi một câu sql nhưng bên dưới có tới 5 câu sql được thực thi, đó chính là N+1 queries.
+
+Ví dụ khác về quan hệ 1-1 giữa `User` và `Address` sử dụng annotation `@OneToOne`:
+
+```java
+@Setter
+@Getter
+@Entity(name = "User")
+@Table(name = "tbl_users")
+public class User {
+    @Id
+    private Long id;
+
+    private String username;
+
+    @OneToOne
+    private Address address;
+}
+
+@Setter
+@Getter
+@Entity(name = "Address")
+@Table(name = "tbl_address")
+public class Address {
+    @Id
+    private Long id;
+
+    private String detail;
+}
+```
+
+```java
+@Repository
+public class UserRepository {
+    @Autowired
+    EntityManager em;
+
+    public List<User> getUserInfo() {
+        return em.createQuery("""
+                        select u from User u
+                        """, User.class)
+                .getResultList();
+    }
+}
+```
+
+- Những câu lệnh Hibernate đã thực thi.
+
+```logs
+Hibernate: select u1_0.id,u1_0.address_id,u1_0.username from tbl_users u1_0
+Hibernate: select a1_0.id,a1_0.detail from tbl_address a1_0 where a1_0.id=?
+Hibernate: select a1_0.id,a1_0.detail from tbl_address a1_0 where a1_0.id=?
+```
+
+**=> Kết luận 1:** Với hai annotation `@OneToOne` , `@ManyToOne` và `FetchType.EAGER` mặc định sẽ gặp phải bài toán N+1 queries.
+
+## 2.2 - FetchType.LAZY
+
+- Nếu sửa thành `@ManyToOne(fetch = FetchType.LAZY)` thì sao? `FetchType.LAZY` có tác dụng gì?
+
+- `FetchType.LAZY` nghe cái tên chắc các bạn cũng đoán được vai trò của fetch type này đó là đảm bảo khi các dữ liệu liên quan chưa được sử dụng tới thì sẽ chưa query vào database để lấy.
+
+- Cụ thể, nếu mình sửa thành `@ManyToOne(fetch = FetchType.LAZY)` và chạy lại chương trình thì chỉ một câu lệnh được thực thi.
+
+```logs
+Hibernate: select c1_0.id,c1_0.content,c1_0.post_id,c1_0.status from tbl_comments c1_0
+```
+
+- Nhưng nếu mình có sử dụng tới dữ liệu liên quan thì sao? Trong trường hợp này là dữ liệu bảng `Post`, ví dụ như sau:
+
+```Java
+@Service
+public class CommentService {
+    private final Logger LOGGER = LoggerFactory.getLogger(CommentService.class);
+
+    @Autowired
+    EntityManager em;
+
+    @Autowired
+    CommentRepository repo;
+
+    @Transactional
+    public void getComments() {
+        List<Comment> comments = repo.getComments();
+
+        for (Comment comment : comments) {
+            LOGGER.info(
+                    "The Post '{}' got this comment '{}'",
+                    comment.getPost().getTitle(),
+                    comment.getContent()
+            );
+        }
+    }
+}
+```
+
+- Ở đây, sau khi lấy được danh sách comments, mình thực hiện logs ra thông tin của bài viết và comment tương ứng. Lúc này Hibernate sẽ thực hiện thêm N câu query như sau:
+
+```logs
+Hibernate: select c1_0.id,c1_0.content,c1_0.post_id,c1_0.status from tbl_comments c1_0
+Hibernate: select p1_0.id,p1_0.slug,p1_0.title from tbl_posts p1_0 where p1_0.id=?
+2024-07-11T23:39:58.269+07:00  INFO 38404 --- [           main] c.d.n.service.CommentService         : The post 'This is a post 01' has this comment 'comment on post 1'
+Hibernate: select p1_0.id,p1_0.slug,p1_0.title from tbl_posts p1_0 where p1_0.id=?
+2024-07-11T23:39:58.270+07:00  INFO 38404 --- [           main] c.d.n.service.CommentService         : The post 'This is a post 02' has this comment 'comment on post 2'
+Hibernate: select p1_0.id,p1_0.slug,p1_0.title from tbl_posts p1_0 where p1_0.id=?
+2024-07-11T23:39:58.271+07:00  INFO 38404 --- [           main] c.d.n.service.CommentService         : The post 'This is a post 03' has this comment 'comment on post 3'
+```
+
+- Các bạn để ý logs chỗ này, đầu tiên vẫn là câu query lấy danh sách comment. Nhưng các câu query bên dưới được thực hiện lần lượt khi lặp qua danh sách comments.
+
+- Đối với hai annotation `@OneToMany` và `@ManyToMany` thì fetch type mặc định là `FetchType.LAZY`.
+
+**=> Kết luận 2:** Cho dù có sửa thành `FetchType.LAZY` hoặc sử dụng `@OneToOne` hoăck `@ManyToMany` vẫn không tránh được N+1 queries nếu chúng ta có sử dụng đến các dữ liệu liên quan.
+
+## 2.3 - Giải pháp
+
+- Ở phần 1, mình lấy ví dụ về bài toán N+1 sử dụng câu lệnh native sql. Khi đó giải pháp cho bài toán N+1 queries chính là sử dụng mệnh đề `JOIN`. Vậy nếu sử dụng framework thì sao?
+
+### JOIN FETCH
+
+- Bản chất `JOIN FETCH` là kỹ thuật giúp chúng ta đạt được mệnh đề `JOIN` khi thao tác với các entities thay vì phải viết câu lệnh native sql. Với cách viết này thì khi dùng cả `FetchType.EAGER` và `FetchType.LAZY` đều sẽ tránh được N+1 queries.
+
+```Java
+@Repository
+public class CommentRepository {
+    @Autowired
+    EntityManager em;
+
+    public List<Comment> getCommentsWithJoinFetch() {
+        return em.createQuery("""
+                        select c
+                        from Comment c
+                        join fetch c.post p
+                        """, Comment.class)
+                .getResultList();
+    }
+}
+```
+
+- Lúc này, dù cấu hình fetch type là gì hay có sử dụng thông tin bảng `Post` không thì cũng chỉ có 1 câu query được thực hiện:
+
+```logs
+Hibernate: select c1_0.id,c1_0.content,p1_0.id,p1_0.slug,p1_0.title,c1_0.status from tbl_comments c1_0 join tbl_posts p1_0 on p1_0.id=c1_0.post_id
+```
+
+Lưu ý: Nếu bảng `Comment` và `Post` có quá nhiều dữ liệu, việc join 2 bảng này có thể dẫn đến vấn đề hiệu năng. Khi đó, các bạn có thể sử dụng `JOIN FETCH` kết hợp với Pagination như sau:
+
+```Java
+public List<Comment> getCommentsWithJoinFetchAndPagination(int pageSize, int pageNumber) {
+    return em.createQuery("""
+                    select c
+                    from Comment c
+                    join fetch c.post p
+                    """, Comment.class)
+            .setFirstResult(pageNumber * pageSize)
+            .setMaxResults(pageSize)
+            .getResultList();
+}
+```
+
+**=> Kết luận 3:** Phương pháp đầu tiên để tránh N+1 queries đó là sử dụng `JOIN FETCH` trong các framework như Hibernate.
+
+### Secondary Queries
+
+- Trong trường hợp các bạn muốn lấy dữ liệu `Post` và `Comment` độc lập thì có thể sử dụng kỹ thuật secondary queries thay vì sử dụng vòng lặp for. Lúc này chỉ có hai câu queries được thực thi nhưng có thể các bạn sẽ phải xử lý nhiều hơn ở tầng `Service`.
+
+- Ví dụ mình muốn lấy danh sách bài viết và toàn bộ các comments của từng bài viết:
+
+```Java
+public Map<String, Object> getPostAndCommentsWithSecondaryQueries() {
+    Map<String, Object> result = new HashMap<>();
+
+    List<Post> posts = em.createQuery("""
+                    select p from Post p
+                    """, Post.class)
+            .getResultList();
+
+    List<Comment> comments = em.createQuery("""
+                    select c from Comment c where c.post in :posts
+                    """, Comment.class)
+            .setParameter("posts", posts)
+            .getResultList();
+
+    result.put("comments", comments);
+    result.put("posts", posts);
+
+    return result;
+}
+```
+
+```logs
+Hibernate: select p1_0.id,p1_0.slug,p1_0.title from tbl_posts p1_0
+Hibernate: select c1_0.id,c1_0.content,c1_0.post_id,c1_0.status from tbl_comments c1_0 where c1_0.post_id in (?,?,?)
+```
+
+**=> Kết luận 4**: Sử dụng secondary queries cũng có thể tránh được N+1 queries nhưng các bạn sẽ thực thi hai câu sql độc lập dựa trên mệnh đề `IN` trong SQL.
+
+### @BatchSize
+
+- `@BatchSize` trên các annotation có fetch type là `FetchType.LAZY` cũng là một phương pháp để tránh bài toán N+1 queries trong Hibernate. Bản chất việc sử dụng annotation này là thực hiện một subquery sử dụng mệnh đề `IN`. Các bạn cập nhật entity `Post` như sau:
+
+```Java
+@Setter
+@Getter
+@Entity(name = "Post")
+@Table(name = "tbl_posts")
+public class Post {
+    @Id
+    private Long id;
+
+    private String title;
+
+    private String slug;
+
+    @OneToMany(mappedBy = "post")
+    @BatchSize(size = 5)
+    private List<Comment> comments;
+}
+```
+
+Ví dụ mình lấy danh sách 5 bài viết và comments tương ứng của mỗi bài viết thì mình sẽ cấu hình như bên trên và dưới đây là câu lệnh mà Hibernate thực thi.
+
+```logs
+Hibernate: select p1_0.id,p1_0.slug,p1_0.title from tbl_posts p1_0
+Hibernate: select c1_0.post_id,c1_0.id,c1_0.content,c1_0.status from tbl_comments c1_0 where c1_0.post_id in (?,?,?,?,?)
+2024-07-13T10:21:32.351+07:00  INFO 71168 --- [           main] c.d.n.service.CommentService             : The Post 'This is a post 01' has '1' comments
+2024-07-13T10:21:32.351+07:00  INFO 71168 --- [           main] c.d.n.service.CommentService             : The Post 'This is a post 02' has '1' comments
+2024-07-13T10:21:32.351+07:00  INFO 71168 --- [           main] c.d.n.service.CommentService             : The Post 'This is a post 03' has '2' comments
+```
+
+Lưu ý: Các bạn có thể cấu hình batch fetch size mặc định trong file `application.properties` hoặc `application.yml` như sau:
+
+```yml
+spring:
+  jpa:
+    properties:
+      hibernate:
+        default_batch_fetch_size: 5
+```
+
+```properties
+spring.jpa.properties.hibernate.default_batch_fetch_size = 5
+```
+
+**=> Kết luận 5**: Bản chất `@BatchSize` cũng sử dụng mệnh đề `IN` trong SQL nhưng khác với secondary queries ở chỗ chúng ta có thể cấu hình và không cần viết nhiều câu sql.
+
+# 3. Điểm D có đáng không?
+
+Nếu các bạn để ý, cả 3 cách mà Hibernate sử dụng để giải quyết bài toán N+1 vẫn là cố đẩy về việc sử dụng `JOIN` và `IN` trong SQL. Vậy `JOIN` và `IN` khác nhau như thế nào?
+
+### JOIN
+
+- `JOIN` được sử dụng để kết hợp các bản ghi từ hai hoặc nhiều bảng bằng cách sử dụng các giá trị chung của mỗi bảng.
+- Cơ chế hoạt động của join là dựa trên điều kiện => tìm ra những bản ghi thoả mãn điều kiện ở các bảng => tạo ra danh sách các bản ghi kết hợp từ dữ liệu các bảng => trả về kết quả.
+- Như vậy trước khi điều kiện `WHERE` được kiểm tra thì dữ liệu được duyệt đã có sẵn rồi.
+
+### IN
+
+- `IN` thì dễ hiểu rồi, so với `JOIN` thì `SELECT IN` chỉ đơn giản lọc các bản ghi thoả điều kiện trong mệnh đề IN và mệnh đề WHERE (nếu có) => trả về kết quả.
+
+=> Đến đây chắc các bạn cũng hình dung ra sử dụng `IN` sẽ tối ưu hơn việc join hai hay nhiều bảng lớn vì `JOIN` phải quét các bảng, kết hợp dữ liệu rồi, kiểm tra điều kiện rồi mới trả kết quả trong khi `IN` thì chỉ cần quét bảng và trả về kết quả theo điều kiện.
+
+Quay lại câu chuyện ở đầu bài viết, đôi khi "giả ngu" lại hay hơn là cố cãi cho đúng, team mình đã sai khi "cố cãi" cho cái "ngu" của mình. Nhưng thầy nói dùng `JOIN` là xong?
+
+- Vậy nếu ứng dụng của mình có hàng trăm ngàn bài viết, hàng triệu bình luận mà cứ miễn cưỡng `JOIN` thì liệu có tối ưu không?
+
+- Nếu mình chỉ cần lấy mỗi lần 10 comments và sử dụng `IN` để khử N+1queries và lấy ra bài viết của mỗi comment thì có nhanh hơn việc `JOIN` trên hàng triệu bản ghi không?
+
+**=> Kết luận 6**: Câu trả lời có lẽ là có nhưng cũng tuỳ đặc thù của hệ thống và đặc điểm của cơ sở dữ liệu. Bài học muôn thở là đừng "bật thầy" hoặc "bật sếp" khi các bạn chưa chắc và ở nơi đông người.
+
+# 4. Lời kết
+
+Cảm ơn các bạn đã theo dõi bài viết của mình, hi vọng bài viết sẽ phần nào giúp các bạn hiểu hơn về bài toán N+1 queries khi làm việc với cơ sở dữ liệu cũng như với các data access framework như Hibernate.
+
+Hẹn gặp lại các bạn trong các bài viết tiếp theo. Happy Coding!

@@ -17,31 +17,17 @@ export default function Home({ posts }) {
             Hello, Friends!
           </h1>
           <h2 className="text-2lg prose text-gray-600 dark:text-gray-400">
-            {/* {`Chào mừng các bạn đến với blog của mình - blog của một lập trình viên với lối sống
-              tối giản. Hiện tại mình làm việc với vị trí một full-stack engineer. Mình thích đọc, thích
-              viết, thời gian rảnh thường viết blog, đi đâu đó hoặc tập calisthenics. 
-            `} */}
-            {/* {`Welcome to my blog - ${siteMetadata.description}. I am the co-founder of Cylynx, a data
-            scientist by profession and economist by training. In my free time, I like developing `}
-            <Link href="/projects">side projects</Link>
-            {' and '}
-            <Link href="/blog">blogging</Link>
-            {' about them. Have a good read!'} */}
             {`Welcome to my blog, the blog of a minimalist software engineer. Currently, I'm working as a 
             full-stack web engineer. I love reading, writing, and in my free time, I usually write on my blog, 
             travel to new places, or practice calisthenics.`}
           </h2>
         </div>
-        <div className="mx-2 my-12 flex w-[300px] items-center justify-center sm:w-[400px] md:w-[550px]">
+        {/* <div className="mx-2 my-12 flex w-[300px] items-center justify-center sm:w-[400px] md:w-[550px]">
           <NewsletterForm title="Receive the latest post straight to your mailbox" />
-        </div>
+        </div> */}
       </div>
       <div className="divide-y divide-gray-200 dark:divide-gray-700">
-        <div className="space-y-2 pt-2 md:space-y-3">
-          {/* <h1 className="text-3xl font-extrabold leading-9 tracking-tight text-gray-900 dark:text-gray-100 sm:text-4xl sm:leading-10 md:text-6xl md:leading-14">
-            Latest
-          </h1> */}
-        </div>
+        <div className="space-y-2 pt-2 md:space-y-3"></div>
         <ul className="divide-y divide-gray-200 dark:divide-gray-700">
           {!posts.length && 'No posts found.'}
           {posts.slice(0, MAX_DISPLAY).map((post) => {
