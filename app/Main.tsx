@@ -4,15 +4,16 @@ import Link from '../components/Link'
 import Tag from '@/components/Tag'
 import siteMetadata from '@/data/siteMetadata'
 import { formatDate } from 'pliny/utils/formatDate'
-import NewsletterForm from 'pliny/ui/NewsletterForm'
+// import NewsletterForm from 'pliny/ui/NewsletterForm'
+import Slogun from '@/data/authors/onepercent.svg'
 
 const MAX_DISPLAY = 5
 
 export default function Home({ posts }) {
   return (
     <>
-      <div className="my-6 flex flex-col items-center gap-x-12 xl:mb-12 xl:flex-row">
-        <div className="mr-8 pt-6">
+      <div className="flex flex-col items-center xl:flex-row">
+        <div className="mr-10">
           <h1 className="text-1xl sm:text-1xl pb-6 font-extrabold leading-9 tracking-tight text-gray-900 dark:text-gray-100 sm:leading-10 md:text-5xl md:leading-14">
             Hello, Friends!
           </h1>
@@ -22,9 +23,9 @@ export default function Home({ posts }) {
             travel to new places, or practice calisthenics.`}
           </h2>
         </div>
-        {/* <div className="mx-2 my-12 flex w-[300px] items-center justify-center sm:w-[400px] md:w-[550px]">
-          <NewsletterForm title="Receive the latest post straight to your mailbox" />
-        </div> */}
+        <div className="my-4 flex w-[300px] items-center justify-center sm:w-[400px] md:w-[550px]">
+          <Slogun />
+        </div>
       </div>
       <div className="divide-y divide-gray-200 dark:divide-gray-700">
         <div className="space-y-2 pt-2 md:space-y-3"></div>
