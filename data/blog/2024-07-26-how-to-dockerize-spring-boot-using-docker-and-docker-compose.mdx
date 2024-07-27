@@ -1,0 +1,466 @@
+---
+title: '[Docker] - How to dockerize a Spring Boot application?'
+date: '2024-07-26'
+lastmod: '2024-07-26'
+tags: ['Docker', 'Docker Compose', 'Spring Boot', 'PostgreSQL']
+draft: false
+summary: In this post, we will learn how to dockerize a standard Spring Boot application using Docker and Docker Compose. Specifically, we will focus on a backend system that provides APIs using Spring Boot and connects to a PostgreSQL database.
+images: ['/static/img/prompts/structured-blocks-cover.png']
+layout: PostLayout
+---
+
+<TOCInline toc={props.toc} asDisclosure toHeading={3} />
+
+# 1. What are we going to do?
+
+In this post, we will learn how to dockerize a standard Spring Boot application using Docker and Docker Compose. Specifically, we will focus on a backend system that provides APIs using Spring Boot and connects to a PostgreSQL database.
+
+1. We need to understand how a Spring Boot application will be run and deployed.
+
+2. Write Dockerfile and build Docker image for the Spring Boot application.
+
+3. Write Docker compose file and use the created Docker image to run our container for the Spring Boot application.
+
+# 2. Setup and add some business logic
+
+## 2.1 - Setup and run our Spring Boot application.
+
+### Step 1: Setting up
+
+- First of all, let create a Spring Boot application by using [https://start.spring.io/](https://start.spring.io/).
+
+- In this example, I will use `Java 17`, `Maven` for dependencies management and packaging project in `.jar` file.
+
+![Alt text](/static/img/posts/dockerize/init-source-code.png 'init code')
+
+- After that we will create two configuration files with name `application.yml` and `application-dev.yml` (I prefer using `.yml` file instead of `.properties` file).
+
+=>`application.yml`: This file will be used for common configuration of the application.
+
+```yml
+spring:
+  profiles:
+    active: dev
+server:
+  servlet:
+    context-path: /api/v1/
+```
+
+- **spring.active.profiles**: This property specifies the active profile for the Spring application. In this case, it is set to `dev`, which means the application will use configuration settings defined under the `dev` profile.
+
+- **server.servlet.context-path**: This setting defines the context path for the web application. It means that all the endpoints of the application will be prefixed with `/api/v1` (it's a common way to specify our versions of APIs). For example, if you have a controller mapped to `/users`, the full path will be `<your base url>/api/v1/users`
+
+=> `application-dev.yml`: This file will be used for development (dev) environment configuration of the application.
+
+```yml
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/test_db
+    username: admin
+    password: root
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+    database: postgresql
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+server:
+  port: 8088
+```
+
+- The first part of this file, we defined Spring datasource configuration with `url`, `username`, `password` and `driver-class-name` and Spring JPA configuration with `hibernate.ddl-auto`, `show-sql`, `properties.hibernate.format`, `database`, `database-platform`
+
+- The second part, we defined a server port configuration which we want to use to public our application.
+
+### Step 2: Running our application
+
+- The most common way to run our Spring Boot application is by using an IDE like IntelliJ IDEA, which is suitable for the development environment on our local machine.
+
+- However, to run our application on a server, we need to package it as a `.jar` file, copy it to the server, and run it as a background service.
+
+- For detailed instructions on how to do this, please refer to my detailed post here.
+
+## 2.2 - Adding some business logic.
+
+- I understand that this post is about dockerizing a Spring Boot application and that should be the focus. However, I don't want to present a overly simplistic example, such as just exposing an API that returns a String. Business logic is a crucial component of any application, and it deserves attention.
+
+- So in this post, we will create two endpoints for a blog application:
+
+  - `/api/v1/posts [GET]`: For getting all posts and related comments.
+  - `/api/v1/posts [POST]`: For create a post
+  - `/api/v1/comments [POST]`: For create a comment
+
+**Note**: If you are familiar with implementing this logic, you can follow my code [here](https://github.com/canhnd15/dockerize-spring-boot-app) and proceed to the next part.
+
+### Entities:
+
+- A blog application will contain various types of objects, but primarily we have `Post` representing articles and `Comment` for the comments.
+
+```Java
+@Setter
+@Getter
+@Entity(name = "Post")
+@Table(name = "tbl_posts")
+public class Post {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    private String title;
+
+    private String content;
+
+    private String slug;
+
+    @OneToMany(mappedBy = "post")
+    private List<Comment> comments;
+}
+```
+
+```Java
+@Setter
+@Getter
+@Entity(name = "Comment")
+@Table(name = "tbl_comments")
+public class Comment {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    private String content;
+
+    @ManyToOne
+    private Post post;
+}
+```
+
+### Repositories:
+
+- Repository layers are used to interact with the database. In our blog application, we will create `PostRepository` and `CommentRepository`, both of which will extend `JpaRepository`.
+
+```Java
+@Repository
+public interface PostRepository extends JpaRepository<Post, Long> {
+}
+```
+
+```Java
+@Repository
+public interface CommentRepository extends JpaRepository<Comment, Long> {
+}
+```
+
+### Services:
+
+- Service layers are used to implement and handle the business logic of our application. In our blog application, we will create `PostService` and `CommentService` to manage the logic for creating and retrieving posts and comments.
+
+```Java
+public interface PostService {
+    PostResp createPost(PostCreateReq req);
+    List<PostResp> getAllPosts();
+}
+```
+
+```Java
+@Service
+@RequiredArgsConstructor
+public class PostServiceImpl implements PostService {
+    private final PostRepository postRepository;
+
+    @Override
+    public PostResp createPost(PostCreateReq req) {
+        Post post = new Post();
+        post.setTitle(req.getTitle());
+        post.setContent(req.getContent());
+        post.setSlug(req.getSlug());
+
+        post = postRepository.save(post);
+
+        return PostResp.builder()
+                .id(post.getId())
+                .title(post.getTitle())
+                .content(post.getContent())
+                .slug(post.getSlug())
+                .build();
+    }
+
+    @Override
+    public List<PostResp> getAllPosts() {
+        List<Post> posts = postRepository.findAll();
+
+        List<PostResp> results = new ArrayList<>();
+
+        if (!posts.isEmpty()) {
+            results = posts.stream().map(post -> PostResp.builder()
+                    .id(post.getId())
+                    .title(post.getTitle())
+                    .content(post.getContent())
+                    .slug(post.getSlug())
+                    .comments(!post.getComments().isEmpty() ? post.getComments().stream()
+                            .map(comment -> CommentResp.builder()
+                                    .id(comment.getId())
+                                    .content(comment.getContent())
+                                    .build()).collect(Collectors.toList()) : null)
+                    .build()).collect(Collectors.toList());
+        }
+        return results;
+    }
+}
+```
+
+```Java
+public interface CommentService {
+    CommentResp createComment(CommentCreateReq req);
+}
+```
+
+```Java
+@Service
+@RequiredArgsConstructor
+public class CommentServiceImpl implements CommentService {
+    private final CommentRepository commentRepository;
+    private final PostRepository postRepository;
+
+    @Override
+    @Transactional
+    public CommentResp createComment(CommentCreateReq req) {
+        Long postId = req.getPostId();
+
+        Optional<Post> optionalPost = postRepository.findById(req.getPostId());
+
+        if(optionalPost.isEmpty())
+            throw new PostNotFoundException("Comment should belong on a post, but post not found with id " + postId);
+
+        Comment comment = new Comment();
+        comment.setContent(req.getContent());
+        comment.setPost(optionalPost.get());
+
+        comment = commentRepository.save(comment);
+
+        return CommentResp.builder()
+                .id(comment.getId())
+                .content(comment.getContent())
+                .postId(comment.getPost().getId())
+                .build();
+    }
+}
+```
+
+### Controllers:
+
+- Controller layers are used to handle requests from the client and receive data from the service layers to return to the client.
+
+```Java
+@RequiredArgsConstructor
+@RestController
+@RequestMapping("/posts")
+public class PostController {
+    private final PostService postService;
+
+    @PostMapping("/")
+    public ResponseEntity<PostResp> createPost(@RequestBody PostCreateReq req) {
+        return ResponseEntity.ok(postService.createPost(req));
+    }
+
+    @GetMapping("/")
+    public ResponseEntity<List<PostResp>> getAllPosts() {
+        return ResponseEntity.ok(postService.getAllPosts());
+    }
+}
+```
+
+```Java
+@RestController
+@RequestMapping("/comments")
+@RequiredArgsConstructor
+public class CommentController {
+    private final CommentService commentService;
+
+    @PostMapping("/")
+    public ResponseEntity<CommentResp> createComment(@RequestBody CommentCreateReq req) {
+        return ResponseEntity.ok(commentService.createComment(req));
+    }
+}
+```
+
+## 2.3 - Setup database on local machine using Docker.
+
+- To run our application locally, you need to set up, configure, and create the database first. I will use Docker to create a database container, so you need to install Docker before following my commands.
+
+- Start the container with specified user and password:
+
+```java
+docker run --name postgre-db -e POSTGRES_USER=root -e POSTGRES_PASSWORD=root -p 5432:5432 -d postgres
+```
+
+- Access the contain:
+
+```java
+docker exec -it postgre-db bash
+```
+
+- Access PostgreSQL command line:
+
+```java
+psql -U root
+```
+
+- Create a new database:
+
+```java
+create database test_db;
+```
+
+=> Now you can run our application and add some testing data.
+
+## 2.4 - Packaging application to `Jar` file.
+
+- To package our application you need to run the following command (you have to install maven on your machine first):
+
+```Java
+ mvn clean package -DskipTests
+```
+
+- After packaging, you will find a new directory named `target` in the root folder. Inside this directory, you'll see your `.jar` file (e.g., `dockerize-spring-boot-app-1.0.0.jar`). You can now run this file directly with a command, and your application will run just as it does when using an IDE.
+
+```Java
+java -jar dockerize-spring-boot-app-1.0.0.jar
+```
+
+=> The key point here is that to run a Spring Boot application on a server or any platform, such as a Docker container, you first need to package the application as a `.jar` file.
+
+# 3. Build image using Dockerfile.
+
+- The first step in dockerizing our application is to create a Docker image. We will define the process step by step in a `Dockerfile`.
+
+```Dockerfile
+#Build stage
+FROM maven:3.8.7-openjdk-18 AS build
+WORKDIR /build
+COPY pom.xml .
+RUN mvn dependency:go-offline
+COPY src ./src
+RUN mvn clean package -DskipTests
+
+#Runtime stage
+FROM amazoncorretto:17
+ARG PROFILE=dev
+ARG APP_VERSION=1.0.0
+
+WORKDIR /app
+COPY --from=build /build/target/dockerize-spring-boot-app-*.jar /app/
+
+EXPOSE 8088
+
+ENV DB_URL=jdbc:postgresql://postgres-sql:5432/test_db
+ENV ACTIVE_PROFILE=${PROFILE}
+ENV JAR_VERSION=${APP_VERSION}
+
+CMD java -jar -Dspring.profiles.active=${ACTIVE_PROFILE} -Dspring.datasource.url=${DB_URL} dockerize-spring-boot-app-${JAR_VERSION}.jar
+```
+
+=> There are several steps involved, but simply put, there are two main stages to understand:
+
+- The first stage is the build stage, where we package our application into a `.jar` file.
+
+- The second stage is the runtime stage, where we run the packaged `.jar` file as a service with the necessary parameters.
+
+Navigate to the directory (root folder) where the `Dockerfile` is located and run the command to create the Docker image.
+
+```java
+docker build -t dockerize-spring-boot-app:1.0.0 .
+```
+
+# 4. Run the application using Docker compose.
+
+- Finally, we need to create a Docker compose file to run our application and database as containers.
+
+```yml
+services:
+  postgres:
+    container_name: postgres-sql
+    image: postgres
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: root
+      PGDATA: /var/lib/postgresql/data
+      POSTGRES_DB: test_db
+    volumes:
+      - postgres:/data/postgres
+    ports:
+      - 5432:5432
+    networks:
+      - test-network
+    restart: unless-stopped
+
+  backend:
+    container_name: app-api
+    image: dockerize-spring-boot-app:1.0.0
+    ports:
+      - 8088:8088
+    networks:
+      - test-network
+    depends_on:
+      - postgres
+
+networks:
+  test-network:
+    driver: bridge
+
+volumes:
+  postgres:
+    driver: local
+```
+
+- Run the command (where you located the Docker compose file).
+
+```java
+docker compose up -d
+```
+
+**Notes:**
+
+- We need to set up a container for our database because both our application and database will be running as containers. We should no longer rely on the database from our local machine.
+
+- After the application and database are run as containers. You can do some test for our APIs.
+
+1. Create a new Post: `/api/v1/posts/` [POST]
+
+```java
+curl --location 'http://localhost:8088/api/v1/posts/' \
+--header 'Content-Type: application/json' \
+--data '{
+    "title":"Post 01",
+    "content":"Conent of post 01",
+    "slug":"this-is-slug-of-post-01"
+}'
+```
+
+2. Create a new Comment: `/api/v1/comments/` [POST]
+
+```java
+curl --location 'http://localhost:8088/api/v1/comments/' \
+--header 'Content-Type: application/json' \
+--data '{
+    "content":"this is comment on post 01",
+    "postId":2
+}'
+```
+
+3. Get all Post with Comments. `/api/v1/posts/` [GET]
+
+```java
+curl --location 'http://localhost:8088/api/v1/posts/'
+```
+
+# 4. Summary
+
+In this post, we explored how to dockerize a Spring Boot application using Docker and Docker Compose. Although this project is a simple demo, it provides a fundamental understanding for beginners and is easy to develop. I hope you find it helpful and that you learn something valuable from it!
+
+[SOURCE CODE](https://github.com/canhnd15/dockerize-spring-boot-app)
+
+See you in the next posts. Happy Coding!
