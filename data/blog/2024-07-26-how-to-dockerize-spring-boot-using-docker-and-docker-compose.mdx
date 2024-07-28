@@ -1,5 +1,5 @@
 ---
-title: '[Docker] - How to dockerize a Spring Boot application?'
+title: '[Docker] - Dockerize a Spring Boot application.'
 date: '2024-07-26'
 lastmod: '2024-07-26'
 tags: ['Docker', 'Docker Compose', 'Spring Boot', 'PostgreSQL']
@@ -56,7 +56,7 @@ server:
 spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/test_db
-    username: admin
+    username: root
     password: root
     driver-class-name: org.postgresql.Driver
   jpa:
@@ -457,7 +457,7 @@ curl --location 'http://localhost:8088/api/v1/comments/' \
 curl --location 'http://localhost:8088/api/v1/posts/'
 ```
 
-# 4. Summary
+# 5. Summary
 
 In this post, we explored how to dockerize a Spring Boot application using Docker and Docker Compose. Although this project is a simple demo, it provides a fundamental understanding for beginners and is easy to develop. I hope you find it helpful and that you learn something valuable from it!
 

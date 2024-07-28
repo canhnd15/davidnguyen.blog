@@ -1,0 +1,196 @@
+---
+title: '[Docker] - Dockerize React application with Nginx as web server.'
+date: '2024-07-27'
+lastmod: '2024-07-27'
+tags: ['Docker', 'React', 'Nginx']
+draft: false
+summary: In the previous post, we explored the process of containerizing a backend service using Spring Boot. In this post, we will delve into how to containerize a frontend application built with React, using Nginx as the web server.
+images: ['/static/img/prompts/structured-blocks-cover.png']
+layout: PostLayout
+---
+
+<TOCInline toc={props.toc} asDisclosure toHeading={3} />
+
+# 1. Create a ReactJS application?
+
+- To create a React application I will use Vite - a modern front-end build tool that provides a fast development environment and optimized build for production. It is particularly designed for modern JavaScript frameworks like Vue.js, React, and others.
+
+- You can follow the commands below:
+
+```sh
+npm create vite@<version>`
+```
+
+- For example:
+
+```sh
+npm create vite@latest #for latest version
+```
+
+```sh
+npm create vite@4 #for version 4
+```
+
+- After running that commands, you have to make some choices.
+
+  - Project's name: dockerize-reactjs-app
+  - Frameworks: React
+  - Variant: JavaScript
+
+- Move to the root folder of your project.
+
+```sh
+cd dockerize-reactjs-app
+```
+
+- Install dependencies
+
+```sh
+npm install
+```
+
+- Run the application
+
+```sh
+npm run dev
+```
+
+=> Our React application will be started at port [5173](http://localhost:5173/)
+
+**Note**: If you are not using Vite, you can use this command:
+
+```sh
+npx create-react-app dockerize-reactjs-app
+```
+
+# 2. Dockerfile
+
+- When you run the React application locally on your machine, you just need to use `npm run dev`. However, if you want your application to run on a server, you need to build your application to static files and then transfer them to the web server (Nginx).
+
+- In this post, we use Dockerfile to create an image and then run a Docker container based on that image as an application.
+
+- Create `Dockerfile` in root folder of the project and `Dockerfile` will contain two parts:
+
+  - Define steps to build our application.
+
+```sh
+# Use Node.js version 16 as the base image and name this stage "build-stage"
+FROM node:16 as build-stage #
+
+# Set the working directory inside the container to /app
+WORKDIR /app
+
+# Copy package.json and package-lock.json to the working directory
+COPY package*.json ./
+
+# Install the dependencies specified in package.json
+RUN npm install
+
+# Copy all files from the current directory to the working directory in the container
+COPY . .
+
+# Build the application using the npm run build script defined in package.json
+RUN npm run build
+```
+
+- Define steps to use Nginx as web server.
+
+```sh
+# Use the official Nginx image based on Alpine Linux as the base image
+FROM nginx:alpine
+
+# Copy the custom nginx.conf configuration file from the local machine to the container
+COPY nginx.conf /etc/nginx/nginx.conf
+
+# Copy the built application files from the build stage to the Nginx HTML directory
+COPY --from=build-stage /app/dist /usr/share/nginx/html
+
+# Expose port 80 to allow traffic to the Nginx server
+EXPOSE 80
+```
+
+# 3. Nginx configuration file.
+
+- To run our Nginx server, we need to define some server configurations for the Nginx.
+
+- Create `nginx.conf` configuration file in root folder of the project (same level with Dockerfile) with content below.
+
+```sh
+# Defining global events configuration, though it is empty for our basic setup.
+events {}
+
+# Defines server configurations.
+http {
+    # Defines a server block, which specifies how to handle requests for a specific domain or IP.
+    server {
+        # Listen on port 80 for incoming HTTP requests.
+        listen 80;
+
+        # This location block handles requests to the root URL ("/").
+        location / {
+            root /usr/share/nginx/html; # Set the root directory for serving files.
+            index index.html; # Specify the default file to serve if the directory is requested.
+            try_files $uri $uri/ /index.html; # Try to serve the requested URI, and if it is not found, fall back to index.html.
+        }
+
+        # This location block handles requests for JavaScript and CSS files.
+        location ~ \.(js|css)$ {
+            root /usr/share/nginx/html; # Set the root directory for serving files.
+            include /etc/nginx/mime.types; # Include the MIME types file to ensure the correct content type is set for these files.
+        }
+
+        # This catch-all location block handles any other requests (e.g., routes in a SPA).
+        location ~ ^/.+$ {
+            root /usr/share/nginx/html; # Set the root directory for serving files.
+            index index.html; # Specify the default file to serve if the directory is requested.
+            try_files $uri /index.html; # Try to serve the requested URI, and if it is not found, fall back to index.html.
+        }
+    }
+}
+```
+
+# 4. Build an image from Dockerfile.
+
+- To deploy our application as a Docker container, we first need to create a Docker image. To build our application into a Docker image, navigate to the root directory (where the Dockerfile is located) and execute the following command:
+
+```sh
+docker build -t dockerize-reactjs-app:1.0.0 .
+```
+
+- Now that we have created a Docker image of our React application, you can push this image to DockerHub using the following commands:
+
+- Login to Docker:
+
+```sh
+docker login
+```
+
+- Create tag for the image:
+
+```sh
+docker tag dockerize-reactjs-app:1.0.0 <your DockerHub username>/dockerize-reactjs-app:1.0.0
+```
+
+- Push image to the DockerHub:
+
+```sh
+docker push <your DockerHub username>/dockerize-reactjs-app:1.0.0
+```
+
+# 5. Run application as Docker container.
+
+- Finally, to run our application as Docker container you can following this command:
+
+```sh
+docker run --name dockerize-reactjs-app -dp 8080:80 dockerize-reactjs-app:1.0.0
+```
+
+- Our React application is now running as a Docker container. You can access the application from your local machine on port 8080, which is mapped to port 80 within the container.
+
+# 6. Summary
+
+In this post, we explored how to dockerize a React application using Docker. Although this project is a simple demo, it provides a fundamental understanding for beginners and is easy to develop. I hope you find it helpful and that you learn something valuable from it!
+
+[SOURCE CODE](https://github.com/canhnd15/dockerize-react-app)
+
+See you in the next posts. Happy Coding!
