@@ -1,0 +1,130 @@
+---
+title: '[Golang] - How to say "Hello" with Golang?'
+date: '2024-01-12'
+lastmod: '2024-01-12'
+tags: ['Golang']
+draft: false
+summary: In this post, we will learn how to write the first program with Golang - a programming language developed by Google and had quickly become popular among developers for building scalable and high-performance applications.
+images: ['/static/img/prompts/structured-blocks-cover.png']
+layout: PostLayout
+---
+
+<TOCInline toc={props.toc} asDisclosure toHeading={3} />
+
+# 1. Golang là gì?
+
+- Golang (thường gọi là Go) là một ngôn ngữ lập trình mã nguồn mở (open-source programming language) được phát triển bỏi Google. Go được thiết kế với mục đích đơn giản (simplicity), hiệu quả (efficiency) và hỗ trợ mạnh mẽ việc lập trình đồng thời (concurrent programming).
+
+- Go đang ngày càng trở nên phổ biến đối với các lập trình viên trong việc xây dựng các hệ thống, ứng dụng đòi hỏi khả năng mở rộng (scalable) và hiệu năng cao (high-performance).
+
+![Alt text](/static/img/posts/golang-hello-cover.png 'cover')
+
+## 1.1 - Điều gì khiến Go nổi bật (key features).
+
+- **Sự đơn giản (Simplicity)**: Cú pháp của Go được cho là đơn giản, rõ ràng hơn nhiều ngôn ngữ lập trình khác khiến cho việc học trở nên dễ dàng. Go cũng tập trung vào việc đơn giản hoá cú pháp giúp lập trình viên tập trung vào xử lý logic nghiệp vụ thay vì để ý nhiều về cú pháp.
+- **Hiệu năng (Performance)**: Go là ngôn ngữ lập trình theo trường phái nhập tĩnh (statically typed) vậy nên quá trình biên dịch (execution times) tương đối nhanh. Hiệu năng của Go có thể được so sánh với C và C++ - là những ngôn ngữ lập hiệu năng cao.
+- **Tính đồng thời (Concurrency)**: Ngày nay các chip máy tính đã có khả năng xử lý đa luồng rất mạnh mẽ, và Go được thiết kế để phù hợp cho các tác vụ đòi hỏi tính đồng thời cao. Ví dụ như web servers hoặc xử lý dòng dữ liệu lớn.
+- **Các thư viện (Library)**: Mức độ phổ biến và mạnh mẽ của một ngôn ngữ lập trình được phần nào phản ánh nhờ các thư viện mà nó hỗ trợ. Go có nhiều thư viện chuẩn, đáp ứng nhiều bài toán và giảm sự phụ thuộc vào các thư viện bên ngoài.
+- **Đa nền tảng (Cross-platform)**: Go được thiết kế để chạy đa nền tảng, cho phép lập trình viên phát triển các ứng dụng chạy trên nhiều hệ điều hành khác nhau mà không cần phải sửa đổi.
+
+## 1.2 - Go dùng làm gì?
+
+- Go có nhiều ứng dụng, song sau đâu là 3 ứng dụng nổi bật:
+
+  - **Phát triển web (Web development)**: Go được sử dụng rộng rãi cho việc phát triển và xây dựng các hệ thống web servers và microservices bởi vì Go có hiệu năng và khả năng xử lý đồng thời tốt như đã đề cập.
+  - **Điện toán đám mây (Cloud computing)**: Có thể các bạn chưa biết nhưng nhiều dịch vụ và công cụ cloud được viết bởi Go ví dụ như Docker và K8S.
+  - **Networking tools**: Làm việc với network đôi khi đòi hỏi khả năng xử lý đồng thời cao, chính vì vậy với ưu điểm của mình Go rất thích hợp cho vị trí này.
+
+# 2. Cài đặt và viết chương trình đầu tiên
+
+## 2.1 - Cài đặt Go.
+
+- Để cài đặt Go, đầu tiên các bạn download file cài đặt [tại đây](https://go.dev/doc/install).
+
+![Alt text](/static/img/posts/golang/tus_1_0.png 'step 0')
+
+- Cài đặt Go khá đơn giản, ví dụ mình sử dụng macOS thì các bước sẽ như sau:
+
+![Alt text](/static/img/posts/golang/tus_1_1.png 'step 1')
+
+![Alt text](/static/img/posts/golang/tus_1_2.png 'step 2')
+
+![Alt text](/static/img/posts/golang/tus_1_3.png 'step 3')
+
+![Alt text](/static/img/posts/golang/tus_1_4.png 'step 4')
+
+- Sau khi cài đặt xong các bạn có thể kiểm tra version đã cài đặt bằng lệnh `go version`:
+
+```sh
+~ ❯ go version
+go version go1.22.5 darwin/arm64
+```
+
+## 2.2 - How to say "Hello World" using Go?
+
+- Như học bất kỳ ngôn ngữ lập trình nào khác, sau khi cài đặt chúng ta sẽ tìm hiểu cách để viết chương trình đầu tiên với ngôn ngữ đó.
+
+- Đối với Go, như mình đã trình bày, Go được thiết kế tương đối đơn giản nên việc viết chương trình đầu tiên với Go cũng vậy. Các bạn không cần IDE hay text editor nào cả. Chỉ đơn giản sử dụng các câu lệnh command là đã viết được rồi.
+
+- Tạo một thư mục mới (new drirectory) để chứa source code.
+
+```sh
+mkdir hello-go
+cd hello-go
+```
+
+- Thường ngôn ngữ lập trình nào cũng sẽ có các thư viện và các module được viết sẵn. Để sử dụng chúng ta sẽ import các phụ thuộc (dependency) vào chương trình chính.
+
+- Với Go, concept cũng tương tự khi Go sử dụng file `go.mod` để quản lý các phụ thuộc đó.
+
+```sh
+~/Desktop/code/hello-go ❯ go mod init firstgo/hello-world
+go: creating new go.mod: module firstgo/hello-world
+```
+
+- Trong câu lệnh bên trên, `go mod init firstgo/hello-world` là lệnh dùng để tạo file `go.mod`. Nhưng có một điểm lưu ý `firstgo/hello-world` là gì? Đó là tên của module sẽ chứa code, trong thực tế tên của module thường là địa chỉ của repository - nơi chứa source code.
+
+- Trong trường hợp các bạn muốn public module của các bạn cho người khác sử dụng thì các bạn sẽ phải public ở một địa mà tools của Go có thể download được. Ví dụ: github.com/yourmodule
+
+- Tiếp theo, tạo file `hello-world.go`
+
+```sh
+~/Desktop/code/hello-go ❯ touch hello-world.go
+```
+
+- Mở file và thêm nội dung chương trình Hello World của Go như sau:
+
+```sh
+~/Desktop/code/hello-go ❯ vi hello-world.go
+```
+
+```go
+package main
+
+import "fmt"
+
+func main() {
+	fmt.Println("Hello, World!")
+}
+```
+
+- Chúng ta có gì trong file `hello-world.go` này.
+
+  - Khai báo main package -> package là một cách để nhóm các functions lại với nhau và được tạo thành từ toàn bộ files trong cùng một thư mục.
+  - Import `fmt` package -> đây là một package phổ biến cho việc định dạng text, trong đó có cả việc in nội dung ra màn hình console.
+  - Hàm main (giống như Java, C++,...) được thực thi mặc định khi chúng ta khởi chạy main package và ở đây in ra màn hình console dòng chữ "Hello, World!".
+  - Lưu ý là chúng ta chỉ có thể định một file `.go` chứa hàm main, nếu các bạn định nghi
+
+- Chạy chương trình dùng lệnh `go run <file's name>` tại thư mục chứa file `.go`.
+
+```
+~/Desktop/code/hello-go ❯ go run hello-world.go
+```
+
+- Go còn hỗ trợ rất nhiều lệnh khác, các bạn có thể tham khảo thêm:
+
+```sh
+~/Desktop/code/hello-go ❯ go help
+```
+
+See you in the next posts. Happy Coding!
