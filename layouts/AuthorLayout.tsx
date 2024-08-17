@@ -39,7 +39,7 @@ export default function AuthorLayout({ children, content }: Props) {
               <SocialIcon kind="github" href={github} />
               <SocialIcon kind="linkedin" href={linkedin} />
             </div>
-            <div className="bottom-2 py-10">
+            {/* <div className="bottom-2 py-10">
               <button className="rounded-lg  border border-slate-500 p-2 font-bold">
                 <a
                   href="https://drive.google.com/file/d/1xTiYimGLPdzW8pYWiMNlUn2BGhNhxRz7/view?usp=sharing"
@@ -48,7 +48,7 @@ export default function AuthorLayout({ children, content }: Props) {
                   My Resume
                 </a>
               </button>
-            </div>
+            </div> */}
           </div>
           <div className="prose max-w-none pb-8 pt-8 dark:prose-invert xl:col-span-2">
             {children}
