@@ -1,0 +1,244 @@
+---
+title: '[AWS] - Deploy Spring Boot application to AWS EC2 via Docker.'
+date: '2024-08-16'
+lastmod: '2024-08-16'
+tags: ['AWS', 'Spring Boot', 'Docker']
+draft: false
+summary: In real-world projects, our applications won't only run on local machines. We need to deploy them to servers and configure them to be accessible from the Internet by clients. In this post, we'll explore how to deploy a Spring Boot application to a cloud server using AWS EC2.
+images: ['/static/img/prompts/structured-blocks-cover.png']
+layout: PostLayout
+---
+
+<TOCInline toc={props.toc} asDisclosure toHeading={3} />
+
+# 1. What are we going to do?
+
+- In this post, we'll build a simple Spring Boot application and then explore how to deploy it to an AWS EC2 instance using both a `.jar` file and a Docker container..
+
+- First, we'll create a simple Spring Boot application that acts as a back-end service, exposing an API that returns a list of user information in JSON format.
+
+- After that, we'll package the application into a `.jar` file and create a Docker image based on a Dockerfile, both of which we'll use to deploy the application to an AWS EC2 instance.
+
+- Finally, we'll create and configure an AWS EC2 instance (using the free tier), and then deploy our application to it using either the `.jar` file or the Docker image we created earlier.
+
+=> The flow for deploying and running our application as service on server:
+
+![Alt text](/static/img/posts/awsec2/flow-overview-1.png 'image')
+
+=> The flow for deploying and running our application as Docker container:
+
+![Alt text](/static/img/posts/awsec2/flow-overview-2.png 'image')
+
+# 2. Create a Spring Boot project
+
+- To keep the focus on the main topic of deploying a Spring Boot application to an AWS EC2 instance, you can quickly create a simple Spring Boot application using [Spring Initializr](https://start.spring.io/)
+
+- Our application will expose an API at the endpoint `/api/v1/users/` that returns a list of users as a JSON object.
+
+- Find more details about the source code on my [GitHub](https://github.com/canhnd15/cicd-github-actions).
+
+### 2.1 - Packaging application as a `.jar` file using Maven.
+
+- To package a Spring Boot application into a `.jar` file, first navigate to the project's root directory. Then, you can use Maven by executing the following command (make sure Maven is installed and correctly configured on your machine beforehand):
+
+```sh
+mvn clean package
+```
+
+- If you are using Gradle as your build tool, you can package the Spring Boot application using the following command:
+
+```sh
+./gradlew build
+```
+
+- After the application is built, a folder named `./target` will be created, and you can find the resulting `.jar` file inside it.
+
+### 2.2 - Packaging application as Docker image and push to DockerHub.
+
+- First, we need to define a Dockerfile with the following steps:
+
+```Dockerfile
+FROM openjdk:17-jdk
+
+WORKDIR /app
+
+COPY target/cicd-demo-*.jar /app/cicd-demo.jar
+
+EXPOSE 8080
+
+CMD ["java", "-jar", "cicd-demo.jar"]
+```
+
+- Run the following command in the directory where the Dockerfile is located to build a Docker image based on that Dockerfile:
+
+```sh
+docker build -t <your docker hub username>/<your image name>:<version> .
+```
+
+=> For example:
+
+```sh
+docker build -t canhnd15/cicd-demo:latest .
+```
+
+- Push the created Docker image to DockerHub by running the following command (Note: Make sure you're logged into DockerHub first):
+
+```sh
+docker push <your docker hub username>/<your image name>:<version>
+```
+
+=> For example:
+
+```sh
+docker push canhnd15/cicd-demo:latest
+```
+
+# 3. Deploy Spring Boot application to AWS EC2
+
+### 3.1 - configure and create an AWS EC2 instance.
+
+- To deploy any application to an AWS service, you must have an AWS account. If you don't have one, follow this [AWS account creation guide](https://aws.amazon.com/premiumsupport/knowledge-center/create-and-activate-aws-account/) to create your account.
+
+- Now, we need to create and configure an AWS EC2 instance to host our application. However, one of the best practices when working with AWS services is to avoid using the root account for everyday tasks.
+
+=> Therefore, in this article, I'll create a sub-account (IAM user) and perform all actions using that account. However, you can also work on your root account if you prefer — there's no problem with that.
+
+**Step 1**: Login to your [AWS account](https://aws.amazon.com/vi/console/)
+
+**Step 2**: Choose a region close to your location, as this will help make your requests and responses faster.
+
+![Alt text](/static/img/posts/awsec2/region.png 'image')
+
+- We have a default VPC (Virtual Private Cloud) available, so there is no need to create a new one.
+
+![Alt text](/static/img/posts/awsec2/default.png 'image')
+
+**Step 3**: Create a Security Group
+
+![Alt text](/static/img/posts/awsec2/security-group.png 'image')
+
+- Create new rules:
+
+![Alt text](/static/img/posts/awsec2/add-rules.png 'image')
+
+- Here, we configure the inbound rules for accessing the EC2 instance from outside:
+
+  - SSH (port 22): Allow access only from your machine's IP address.
+  - HTTP (port 8080): Allow access from any IPv4 address.
+  - HTTP (port 8090): Allow access from any IPv4 address.
+
+![Alt text](/static/img/posts/awsec2/inbound-rules.png 'image')
+
+**Step 4**: Create a new Key Pairs
+
+- Next, we need to create a new key pair file to secure access to our EC2 instance. Be sure to save the created file in a safe directory.
+
+![Alt text](/static/img/posts/awsec2/key-pairs.png 'image')
+
+**Step 5**: Launch a new instance
+
+=> **NOTE**: In this post, we are using the free tier of AWS services. Make sure not to change any options that could incur charges, as I am not responsible for any costs that may arise.
+
+![Alt text](/static/img/posts/awsec2/update_1.png 'image')
+
+![Alt text](/static/img/posts/awsec2/update_2.png 'image')
+
+![Alt text](/static/img/posts/awsec2/update_3.png 'image')
+
+- The new EC2 instance has been created. Now, let's connect to it and deploy our application.
+
+![Alt text](/static/img/posts/awsec2/update_4.png 'image')
+
+- Use can follow the instruction below to connect to our EC2 instance.
+
+![Alt text](/static/img/posts/awsec2/connect.png 'image')
+
+=> For example:
+
+```sh
+chmod 400 spring-boot-aws-demo.pem
+```
+
+```sh
+ssh -i spring-boot-aws-demo.pem ec2-user@18.141.147.110
+```
+
+### 3.2 - Deploy and run as a service using `.jar` file.
+
+- To run our Spring Boot application as a service via a .jar file, we first need to install Java on our EC2 instance. I will install Java version 17 using the following command:
+
+```sh
+[ec2-user@ip-172-31-17-192 ~]$ sudo yum install -y java-17
+```
+
+- Check Java version again
+
+```sh
+[ec2-user@ip-172-31-17-192 ~]$ java -version
+openjdk version "17.0.12" 2024-07-16 LTS
+OpenJDK Runtime Environment Corretto-17.0.12.7.1 (build 17.0.12+7-LTS)
+OpenJDK 64-Bit Server VM Corretto-17.0.12.7.1 (build 17.0.12+7-LTS, mixed mode, sharing)
+```
+
+- Move the `.jar` which created from Spring Boot application to the same folder where `.pem` file is located.
+
+- Copy the `.jar` file from your local machine to the EC2 instance using the following command:
+
+```sh
+~/Desktop/code/aws ❯ scp -i spring-boot-aws-demo.pem cicd-demo-1.0.0.jar ec2-user@18.141.147.110:/home/ec2-user
+cicd-demo-1.0.0.jar                                                                       100%   21MB   3.4MB/s   00:06
+```
+
+- Change directory to folder `/home/ec2-user` and run the command:
+
+```sh
+java -jar cicd-demo-1.0.0.jar
+```
+
+![Alt text](/static/img/posts/awsec2/run_by_jar_file.png 'image')
+
+- And our application is running on EC2 instance:
+
+```logs
+~/Desktop/code/aws ❯ curl http://18.141.147.110:8090/api/v1/users/
+{"message":"get users successfully!","code":100,"response":[{"firstName":"firstname 0","lastName":"lastname 0","username":"username 0","email":"email_0@gmail.com"},{"firstName":"firstname 1","lastName":"lastname 1","username":"username 1","email":"email_1@gmail.com"},{"firstName":"firstname 2","lastName":"lastname 2","username":"username 2","email":"email_2@gmail.com"},{"firstName":"firstname 3","lastName":"lastname 3","username":"username 3","email":"email_3@gmail.com"},{"firstName":"firstname 4","lastName":"lastname 4","username":"username 4","email":"email_4@gmail.com"},{"firstName":"firstname 5","lastName":"lastname 5","username":"username 5","email":"email_5@gmail.com"},{"firstName":"firstname 6","lastName":"lastname 6","username":"username 6","email":"email_6@gmail.com"},{"firstName":"firstname 7","lastName":"lastname 7","username":"username 7","email":"email_7@gmail.com"},{"firstName":"firstname 8","lastName":"lastname 8","username":"username 8","email":"email_8@gmail.com"},{"firstName":"firstname 9","lastName":"lastname 9","username":"username 9","email":"email_9@gmail.com"}]}%
+```
+
+### 3.2 - Deploy and run as a Docker container.
+
+- To run our application as a Docker container, we need to install Docker on the EC2 instance first. Use the following command:
+
+```sh
+[ec2-user@ip-172-31-17-192 ~]$ sudo yum install -y docker
+```
+
+- After installing Docker, start the Docker service and enable it to start on boot:
+
+```sh
+sudo systemctl start docker
+sudo systemctl enable docker
+```
+
+- Next, run our application as a Docker container using the Docker image that was pushed to DockerHub earlier with the following command:
+
+```sh
+[ec2-user@ip-172-31-17-192 ~]$ sudo docker run --name spring-boot-aws-demo -d -p 8090:8090 canhnd15/cicd-demo:1.0.0
+```
+
+- And our application is running as Docker container.
+
+```sh
+[ec2-user@ip-172-31-17-192 ~]$ sudo docker ps
+CONTAINER ID   IMAGE                      COMMAND                  CREATED          STATUS          PORTS                                       NAMES
+1b03302077f7   canhnd15/cicd-demo:1.0.0   "java -jar cicd-demo…"   37 seconds ago   Up 35 seconds   0.0.0.0:8090->8090/tcp, :::8090->8090/tcp   spring-boot-aws-demo
+```
+
+# 4. Summary.
+
+- In this post, we explored how to use deploy a simple Spring Boot application to and AWS EC2 instance. Although this project is a simple demo, it provides a fundamental understanding for beginners and is easy to develop. I hope you find it helpful and that you learn something valuable from it!
+
+- We’ll explore more complex applications in the upcoming posts.
+
+[SOURCE CODE](https://github.com/canhnd15/cicd-github-actions)
+
+See you in the next posts. Happy Coding!
