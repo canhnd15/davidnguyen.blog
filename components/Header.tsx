@@ -37,7 +37,7 @@ const Header = () => {
             </Link>
           ))}
         <SearchButton />
-        <ThemeSwitch />
+        {/* <ThemeSwitch /> */}
         <MobileNav />
       </div>
     </header>
