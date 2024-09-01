@@ -1,0 +1,175 @@
+---
+title: 'Difference between @SpringBootTest vs @WebMvcTest'
+date: '2024-08-30'
+lastmod: '2024-08-30'
+tags: ['Unit Test', 'Spring Framework', 'Spring Boot']
+draft: false
+summary: When developing a Spring Boot application, you're likely familiar with the @SpringBootTest and @WebMvcTest annotations, which are commonly used in testing. However, they serve different purposes and have different scopes. In this article, I'll explain the differences between these two annotations.
+images: ['/static/img/posts/tokenbasedflow.png']
+layout: PostLayout
+---
+
+<TOCInline toc={props.toc} asDisclosure toHeading={3} />
+
+# 1. @SpringBootTest
+
+- Our Spring Boot application commonly contain three layers such as controller layer, service layer, data access layer. When we use the `@SpringBootTest` annotation it will make Spring framework scan whole these three layers.
+
+- Beans will be created from classes with annotations such as `@Component`, `@Repository`, `@Service`, and `@Controller`, and added to the application context.
+
+- Then the whole application environment will be bootstrapped by `@SpringBootTest`, allowing us to inject every bean that we need during component scanning into our test classes.
+
+=> `@SpringBootTest` is a more general annotation that can be used to test the behavior of the application from the top-level perspective, including all the beans, configurations, and auto-configurations when the application has loaded.
+
+# 2. @SpringMvcTest
+
+- The `@WebMvcTest` is primarily used for testing the controller layer, including the request mappings, JSON serialization and deserialization, and other web-related components.
+
+- Spring framework only scan the `@Controller`, `@ControllerAdvice`, `@JsonComponent`, WebMvcConfiguration, and HandlerMethodArgumentResolver classes, which are linked to MVC infrastructure.
+
+- Classes containing the `@Component`, `@Service`, or `@Repository` annotation will be skipped.
+
+- Additionally, the Spring framework will only scan the specific controller that you choose to include using the `@WebMvcTest` annotation.
+
+=> Note: By default, `@SpringBootTest` does not start a server. We need to add the attribute `webEnvironment` to further refine how your tests run. And it has several options:
+
+- `MOCK`: This is default option for loading a web `ApplicationContext` and providing a mock web environment.
+- `RANDOM_PORT`: Loads a WebServerApplicationContext and provides a real web environment. The embedded server is started and listened to a random port. This is the one that should be used for the integration test.
+- `DEFINED_PORT`: Loads a WebServerApplicationContext and provides a real web environment.
+
+=> All in all, annotation `@WebMvcTest` is used to test only the web layer of our application.
+
+# 3. What are the differences?
+
+- Within the scope of the entire application context, `@SpringBootTest` loads everything, including databases, security configurations, and other infrastructure components.
+
+=> Because of this, `@SpringBootTest` is well-suited for **integration testing**, where we want to verify how different layers of our application interact with each other.
+
+- `@WebMvcTest` just loads the web layer and mocks out the other levels. By doing this, we can test the behavior of the controller layer without having to deal with the intricacy of the other levels.
+
+=> Because of this, `@SpringMvcTest` is well-suited for **unit testing** the controller layer of our application.
+
+=> Because `@SpringBootTest` loads the entire application context, a significant amount of configuration is required. This means we may need to provide additional configuration for testing.
+
+=> On the other hand, `@WebMvcTest` requires less configuration because it only scans the web layer. This means we don't need to provide additional configuration for other layers of our application, which makes it easier to write and maintain our tests.
+
+# 4. Example code.
+
+- Let's assume we have a `UserController` class with a `create()` method for creating a new user (you can find more detail about the source code [here](https://github.com/canhnd15/unit-test-demo))
+
+```java
+@RestController
+@RequestMapping("/api/v1/users")
+@RequiredArgsConstructor
+public class UserController {
+    private final UserService userService;
+
+    @PostMapping("/")
+    public ResponseEntity<UserSdo> create(@RequestBody UserSdi sdi) {
+        UserSdo sdo = userService.create(sdi);
+        return new ResponseEntity<>(sdo, HttpStatus.CREATED);
+    }
+}
+```
+
+### 4.1 - Using `@WebMvcTest`
+
+```java
+@WebMvcTest(UserController.class)
+public class UserControllerTest {
+    @Autowired
+    private MockMvc mockMvc;
+
+    @MockBean
+    private UserService userService;
+
+    @Test
+    @DisplayName("test create user endpoint")
+    public void call_create_user_should_return_created_user() throws Exception {
+        UserSdi sdi = UserSdi.builder()
+                .username("user")
+                .email("user@gmail.com")
+                .password("user.pwd")
+                .build();
+
+        UserSdo sdo = UserSdo.builder()
+                .id(1L)
+                .username("user")
+                .email("user@gmail.com")
+                .password("user.pwd")
+                .build();
+
+        when(userService.create(Mockito.any(sdi.getClass()))).thenReturn(sdo);
+
+        mockMvc.perform(post("/api/v1/users/")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(sdi)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").value(1L))
+                .andExpect(jsonPath("$.username").value("user"))
+                .andExpect(jsonPath("$.email").value("user@gmail.com"))
+                .andExpect(jsonPath("$.password").value("user.pwd"));
+    }
+}
+```
+
+### 4.2 - Using `@SpringBootTest`
+
+```java
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@AutoConfigureMockMvc
+public class UserControllerIntegrationTest {
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private UserRepository userRepository;
+
+    @Autowired
+    private ObjectMapper mapper;
+
+    @Test
+    public void test_create_new_user() throws Exception {
+        UserSdi sdi = UserSdi.builder()
+                .username("test.username")
+                .email("test.email@gmail.com")
+                .password("test.pwd@")
+                .build();
+
+        User createduser = User.builder()
+                .username(sdi.getUsername())
+                .email(sdi.getEmail())
+                .password(sdi.getPassword())
+                .build();
+
+        userRepository.save(createduser);
+
+        mockMvc.perform(post("/api/v1/users/")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(sdi)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").isNotEmpty())
+                .andExpect(jsonPath("$.username").value("test.username"))
+                .andExpect(jsonPath("$.email").value("test.email@gmail.com"))
+                .andExpect(jsonPath("$.password").value("test.pwd@"));
+    }
+}
+```
+
+NOTE:
+
+=> JUnit and Constructor Injection: JUnit does not natively support constructor injection for test classes. Unlike Spring's dependency injection mechanism, JUnit does not automatically resolve and inject parameters into the test class constructor. Instead, JUnit expects test classes to have a no-argument constructor.
+
+=> `MockMvc` Injection: In Spring tests, MockMvc is typically injected using field injection (via `@Autowired`) or provided by using `@BeforeEach` setup methods, rather than through constructor injection.
+
+# 5. Conclusion.
+
+=> That's all about the difference between `@WebMvcTest` and `@SpringBootTest` annotation in Spring Boot.
+
+- In conclusion, `@SpringBootTest` is a more all purpose annotation that loads the context of the entire application and offers a mechanism to test the program as a whole.
+
+- The more specialized annotation `@WebMvcTest`, on the other hand, loads only the web layer and is usually used to test the controller layer of your application.
+
+[SOURCE CODE](https://github.com/canhnd15/unit-test-demo)
+
+See you in the next posts. Happy Coding!
