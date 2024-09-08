@@ -3,7 +3,7 @@ const projectsData = [
     title: 'E-commerce Microservice',
     description: `A e-commerce application built with microservices architecture (Java, React.js, Spring Boot, Docker, Api Gateway, PostgreSQL, MongoDB, Kafka, Redis, Zipkin...)`,
     imgSrc: '/static/img/projects/e-commerce.png',
-    href: 'https://github.com/canhnd15/BlogMicroservice',
+    href: 'https://github.com/canhnd15/ecommerce-app',
   },
   {
     title: 'Blog Microservice',
