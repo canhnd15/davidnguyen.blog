@@ -17,7 +17,7 @@ const categoryData = [
   {
     title: 'Cloud',
     imgSrc: '/static/img/category/cloud.png',
-    href: '/tags/java',
+    href: '/tags/cloud',
   },
   {
     title: 'Software Architecture',
