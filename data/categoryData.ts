@@ -22,7 +22,12 @@ const categoryData = [
   {
     title: 'Software Architecture',
     imgSrc: '/static/img/category/architecture.png',
-    href: '/tags/architecture',
+    href: '/tags/software-architecture',
+  },
+  {
+    title: 'Software Testing',
+    imgSrc: '/static/img/category/testing.png',
+    href: '/tags/testing',
   },
 ]
 
