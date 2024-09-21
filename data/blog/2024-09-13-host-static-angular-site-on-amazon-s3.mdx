@@ -7,6 +7,7 @@ draft: false
 summary: Amazon S3 (Amazon Simple Storage Service) is an object storage service and most commonly used for storing and protecting any amount of data. We can use Amazon S3 for various type of purposes and in this post I will share with you guys basic steps to host a static Angular site on Amazon S3.
 images: ['/static/img/posts/tokenbasedflow.png']
 layout: PostLayout
+redisKey: static-site-aws-s3
 ---
 
 <TOCInline toc={props.toc} asDisclosure toHeading={3} />
@@ -98,6 +99,8 @@ This is the main part of the article, we will create and config a Amazon S3 buck
 
 ![Alt text](/static/img/posts/awss3/image2.png 'image')
 
+- **NOTE**: In this post, I unchecked **Block all public access** because the focus is on using Amazon S3 to host a static site, and we need to provide public access to the resources in the S3 bucket. However, in real projects, we would typically leave this option checked by default to ensure the security of our resources.
+
 ![Alt text](/static/img/posts/awss3/image3.png 'image')
 
 ![Alt text](/static/img/posts/awss3/image4.png 'image')
@@ -108,7 +111,7 @@ This is the main part of the article, we will create and config a Amazon S3 buck
 
 ![Alt text](/static/img/posts/awss3/image6.png 'image')
 
-- Typically, a static site built with Angular or another frontend framework will include an `index.html` file, which serves as the home or default page of the website. We need to specify this file, along with an `error.html` file for undefined resources, as shown in the image below.
+- **NOTE**: Typically, a static site built with Angular or another frontend framework will include an `index.html` file, which serves as the home or default page of the website. We need to specify this file, along with an `error.html` file for undefined resources, as shown in the image below.
 
 ![Alt text](/static/img/posts/awss3/image7.png 'image')
 
