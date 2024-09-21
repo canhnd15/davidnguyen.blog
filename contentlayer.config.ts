@@ -99,6 +99,7 @@ export const Blog = defineDocumentType(() => ({
     layout: { type: 'string' },
     bibliography: { type: 'json' },
     canonicalUrl: { type: 'string' },
+    redisKey: { type: 'string' },
   },
   computedFields: {
     ...computedFields,
@@ -136,6 +137,42 @@ export const Authors = defineDocumentType(() => ({
     layout: { type: 'string' },
   },
   computedFields,
+}))
+
+export const Story = defineDocumentType(() => ({
+  name: 'Story',
+  filePathPattern: 'stories/**/*.mdx',
+  fields: {
+    title: { type: 'string', required: true },
+    date: { type: 'date', required: true },
+    tags: { type: 'list', of: { type: 'string' }, default: [] },
+    lastmod: { type: 'date' },
+    draft: { type: 'boolean' },
+    summary: { type: 'string' },
+    images: { type: 'json' },
+    authors: { type: 'list', of: { type: 'string' } },
+    layout: { type: 'string' },
+    bibliography: { type: 'json' },
+    canonicalUrl: { type: 'string' },
+  },
+  computedFields: {
+    ...computedFields,
+    structuredData: {
+      type: 'json',
+      resolve: (doc) => ({
+        '@context': 'https://schema.org',
+        '@type': 'BlogPosting',
+        headline: doc.title,
+        datePublished: doc.date,
+        dateModified: doc.lastmod || doc.date,
+        description: doc.summary,
+        image: doc.images ? doc.images[0] : siteMetadata.socialBanner,
+        url: `${siteMetadata.siteUrl}/${formatSlug(
+          doc._raw.flattenedPath.replace(/^.+?(\/)/, '')
+        )}`,
+      }),
+    },
+  },
 }))
 
 export default makeSource({

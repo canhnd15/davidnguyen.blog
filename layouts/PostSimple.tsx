@@ -1,4 +1,5 @@
 import { ReactNode } from 'react'
+import React from 'react'
 import { formatDate } from 'pliny/utils/formatDate'
 import { CoreContent } from 'pliny/utils/contentlayer'
 import type { Blog } from 'contentlayer/generated'
