@@ -1,0 +1,217 @@
+---
+title: '[AWS] - Route 53 hands-on for routing static websites.'
+date: '2024-09-21'
+lastmod: '2024-09-21'
+tags: ['S3', 'Route 53', 'EC2', 'AWS', 'cloud']
+draft: false
+summary: In this article, we will explore Amazon Route 53, a highly available and scalable Domain Name System (DNS) web service. One of its key functions is routing internet traffic to resources based on domain names, and we will conduct a hands-on tutorial focused on this functionality.
+images: ['/static/img/posts/tokenbasedflow.png']
+layout: PostLayout
+redisKey: static-site-aws-s3
+---
+
+<TOCInline toc={props.toc} asDisclosure toHeading={3} />
+
+# 1. What are we going to do?
+
+- First of all, we will explore some basic knowledge about Amazon Route 53 to understand what is it and it's features.
+
+- Then we will start by creating two EC2 instances in different regions and deploying simple static websites on them.
+
+- Next, we'll register a domain and use Route 53 to handle routing when users visit the site through the registered domain.
+
+![Alt text](/static/img/posts/route53/image1.png 'image')
+
+- For example, if users are near region A, their requests will be routed to the EC2 instance in region A, while users closer to region B will have their requests routed to the EC2 instance in region B.
+
+# 2. A brief of Amazon Route 53.
+
+> Amazon Route 53 is a highly and scalable Domain Name System (DNS) web service. We can use Route 53 to perform three main functions in any combination: domain registration, DNS routing, and health checking.
+
+<div style={{ textAlign: 'center' }}>
+  <img
+    src="/static/img/posts/route53/cover.png"
+    alt="Alt text"
+    title="image"
+    style={{ marginBottom: '4px' }}
+  />
+</div>
+
+### Register domain names.
+
+- If you want your websites to be visible on the Internet and easily accessible to everyone, you need a domain name to serve as an alias for the IP address. In this case, Route 53 can help you register and manage your domain name.
+
+- If you want to learn more how domain registration work, you can find it [here](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/welcome-domain-registration.html).
+
+### DNS routing.
+
+- What happens when a user opens a web browser and enters your domain name or subdomain name in the address bar?
+
+- In short, while many steps are involved, Route 53 plays a key role in connecting the browser to your website or web application by resolving the domain name to the correct IP address.
+
+- In this post, we
+
+### Health checking.
+
+- Route 53 sends automated requests over the internet to a resource, such as web server, to verify that it's reachable, available, and functional.
+
+- You can choose to receive notifications when a resources becomes unavailable and choose to route internet traffic away from unhealthy resources.
+
+### Other features:
+
+- Route 53 Resolver, Resolver on Outpost, Resolver DNS Firewall, Traffic flow, Route 53 profiles.
+
+# 3. Register a domain.
+
+- As I mentioned, Route 53 allows us to register a new domain name, and it's very easy by following these steps:
+
+![Alt text](/static/img/posts/route53/image2.png 'image')
+
+![Alt text](/static/img/posts/route53/image3.png 'image')
+
+**Big Note**:
+
+- Your domain is not free, and you will need to pay for it depending on the top-level domain (TLD), such as .com or .org.
+
+- Another type of fee you will incur is for a hosted zone, which is a container for DNS records that define how you route traffic for your domain. The cost is $0.50 per hosted zone per month.
+
+- So if you're registering a domain for learning purposes and want to avoid hosted zone charges, make sure to delete the hosted zones after finishing your labs.
+
+# 4. Deploy static sites on EC2 instances to different regions.
+
+**Why deploy to different regions?**
+
+=> Because it improves latency by placing servers close to users, ensuring faster access. It also enhances availability by providing redundancy in case one region experiences an outage.
+
+### 4.1 - Create two EC2 instances in US West (N. California) and Europe (Ireland)
+
+- For instructions on how to create an EC2 instance in the free tier, you can refer to my previous post [here](https://davidnguyenblog.vercel.app/blog/deploy-spring-application-to-aws-ec2-via-docker).
+
+- And here are the two instances that I created.
+
+<div style={{ textAlign: 'center' }}>
+  <img
+    src="/static/img/posts/route53/image4.png"
+    alt="Alt text"
+    title="image"
+    style={{ marginBottom: '4px' }}
+  />
+  <p style={{ marginTop: '0' }}>
+    <small>*US West (N. California) instance*</small>
+  </p>
+</div>
+
+<div style={{ textAlign: 'center' }}>
+  <img
+    src="/static/img/posts/route53/image5.png"
+    alt="Alt text"
+    title="image"
+    style={{ marginBottom: '4px' }}
+  />
+  <p style={{ marginTop: '0' }}>
+    <small>*Europe (Ireland) instance*</small>
+  </p>
+</div>
+
+### 4.2 - Connect to instances and install Nginx
+
+- To connect to EC2 instance you can follow this guide:
+
+![Alt text](/static/img/posts/route53/image6.png 'image')
+
+- Here I connected to instances:
+
+![Alt text](/static/img/posts/route53/image7.png 'image')
+
+- Install nginx on EC2 instances:
+
+![Alt text](/static/img/posts/route53/image8.png 'image')
+
+![Alt text](/static/img/posts/route53/image9.png 'image')
+
+- This article focuses on how Route 53 routes requests to different EC2 instances. I then modified the `index.html` file in the `/usr/share/nginx/html` folder of Nginx to demonstrate the behavior when a client requests from a location near the instances.
+
+- Let's change the content of `index.html` file:
+
+![Alt text](/static/img/posts/route53/image10.png 'image')
+
+# 5. Create hosted zone and records
+
+### 5.1 - Create hosted zone.
+
+- You move to Route 53 service and then click **Create hosted zone** .
+
+![Alt text](/static/img/posts/route53/image11.png 'image')
+
+- Enter your domain name and check **Public hosted zone** (for routing traffic on the internet) then click create.
+
+![Alt text](/static/img/posts/route53/image12.png 'image')
+
+- Here is created hosted zone.
+
+![Alt text](/static/img/posts/route53/image13.png 'image')
+
+**Big Note (for public hosted zone)**
+
+- Whenever you recreated a hosted zone and map to your registered domain, you need to update the `Name servers` of the registered domain by matching it with hosted zone `Name servers` like this:
+
+![Alt text](/static/img/posts/route53/image19.png 'image')
+
+![Alt text](/static/img/posts/route53/image20.png 'image')
+
+### 5.1 - Create records.
+
+- Each record defines how you want Route 53 to response to DNS queries.
+
+- Here we will create two records, one for instance at US West (N. California) and one for instance at Europe (Ireland). As you can see we have some important configuration here:
+
+  - Record type: **A - Routes traffic to an IPv4 address and some AWS resources** (for more detail record types, you can find [here](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/ResourceRecordTypes.html))
+  - Routing policy: **Latency** (you can read more about routing policy [here](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/routing-policy.html))
+
+![Alt text](/static/img/posts/route53/image14.png 'image')
+
+![Alt text](/static/img/posts/route53/image15.png 'image')
+
+- Let's check our sites by using VNP and entering the domain into browser address bar.
+
+<div style={{ textAlign: 'center' }}>
+  <img
+    src="/static/img/posts/route53/image16.png"
+    alt="Alt text"
+    title="image"
+    style={{ marginBottom: '4px' }}
+  />
+  <p style={{ marginTop: '0' }}>
+    <small>*Request from Vietnam*</small>
+  </p>
+</div>
+
+<div style={{ textAlign: 'center' }}>
+  <img
+    src="/static/img/posts/route53/image17.png"
+    alt="Alt text"
+    title="image"
+    style={{ marginBottom: '4px' }}
+  />
+  <p style={{ marginTop: '0' }}>
+    <small>*Request from Germany*</small>
+  </p>
+</div>
+
+<div style={{ textAlign: 'center' }}>
+  <img
+    src="/static/img/posts/route53/image18.png"
+    alt="Alt text"
+    title="image"
+    style={{ marginBottom: '4px' }}
+  />
+  <p style={{ marginTop: '0' }}>
+    <small>*Request from US*</small>
+  </p>
+</div>
+
+# 6. Conclusion.
+
+- In this post, we covered the basics of Amazon Route 53, explored its features, and created a demo on how to configure hosted zones and records. I hope this article provides useful insights and helps you better understand Amazon Route 53.
+
+See you in the next posts. Happy Coding!

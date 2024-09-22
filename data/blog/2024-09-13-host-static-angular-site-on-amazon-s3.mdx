@@ -1,8 +1,8 @@
 ---
-title: '[AWS] - Host a static Angular site on Amazon S3.'
+title: '[AWS] - How to host a static Angular site on Amazon S3.'
 date: '2024-09-13'
 lastmod: '2024-09-13'
-tags: ['AWS S3', 'cloud']
+tags: ['S3', 'AWS', 'cloud']
 draft: false
 summary: Amazon S3 (Amazon Simple Storage Service) is an object storage service and most commonly used for storing and protecting any amount of data. We can use Amazon S3 for various type of purposes and in this post I will share with you guys basic steps to host a static Angular site on Amazon S3.
 images: ['/static/img/posts/tokenbasedflow.png']
@@ -124,6 +124,24 @@ This is the main part of the article, we will create and config a Amazon S3 buck
 - Use S3 policy generator to generate policy. In this case, the policy contain only one action `s3:GetObject` for read only object.
 
 ![Alt text](/static/img/posts/awss3/image10.png 'image')
+
+- Or you can copy this policy:
+
+```json
+{
+  "Id": "Policy1726908495474",
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "Stmt1726908493261",
+      "Action": ["s3:GetObject"],
+      "Effect": "Allow",
+      "Resource": "arn:aws:s3:::angular-app-aws-s3/*",
+      "Principal": "*"
+    }
+  ]
+}
+```
 
 => We have created and configured the properties and policies for the S3 bucket. It is now ready to host our site.
 
