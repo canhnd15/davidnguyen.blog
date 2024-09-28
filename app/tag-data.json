@@ -1,1 +1,1 @@
-{"spring-boot":1,"docker":1,"docker-compose":1,"security":3,"cookie":2,"token":2,"authentication":3,"authorization":1}
+{"security":3,"authentication":3,"authorization":1,"cookie":2,"token":2,"golang":1,"design-pattern":3,"software-architecture":4,"solid":1,"oop":1,"apache-kafka":2,"spring-boot":4,"spring-security":1,"jwt":1,"spring-framework":2,"hibernate":1,"jpa":1,"reactjs":1,"docker":2,"docker-compose":1,"postgresql":1,"devops":3,"react":1,"nginx":1,"cicd":1,"aws-ec2":1,"cloud":4,"unit-test":1,"testing":1,"java":1,"s3":2,"aws":3,"route-53":1,"ec2":2,"elb":1,"asg":1}
