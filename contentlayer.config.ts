@@ -87,7 +87,7 @@ function createPostStatisticByDate(allBlogs) {
   writeFileSync('./app/statistic-date-data.json', JSON.stringify(sortedData))
 }
 
-function getSortedData(data) {
+function getSortedData(data: Record<string, any>) {
   Object.entries(data).sort((a, b) => {
     const dateA = new Date(a[0]).getTime()
     const dateB = new Date(b[0]).getTime()
