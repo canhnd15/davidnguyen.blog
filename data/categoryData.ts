@@ -29,6 +29,11 @@ const categoryData = [
     imgSrc: '/static/img/category/testing.png',
     href: '/tags/testing',
   },
+  {
+    title: 'Front End',
+    imgSrc: '/static/img/category/frontend.png',
+    href: '/tags/frontend',
+  },
 ]
 
 export default categoryData

@@ -70,6 +70,32 @@ function createTagCount(allBlogs) {
   writeFileSync('./app/tag-data.json', JSON.stringify(tagCount))
 }
 
+function createPostStatisticByDate(allBlogs) {
+  const statisticByDate: Record<string, number> = {}
+  allBlogs.forEach((file) => {
+    if (file.date && file.draft !== true) {
+      let date = new Date(file.date)
+      const formattedDate = date.toLocaleDateString('en-US', { year: 'numeric', month: 'long' })
+      if (formattedDate in statisticByDate) {
+        statisticByDate[formattedDate] += 1
+      } else {
+        statisticByDate[formattedDate] = 1
+      }
+    }
+  })
+  const sortedData = getSortedData(statisticByDate)
+  writeFileSync('./app/statistic-date-data.json', JSON.stringify(sortedData))
+}
+
+function getSortedData(data) {
+  Object.entries(data).sort((a, b) => {
+    const dateA = new Date(a[0]).getTime()
+    const dateB = new Date(b[0]).getTime()
+
+    return dateB - dateA
+  })
+}
+
 function createSearchIndex(allBlogs) {
   if (
     siteMetadata?.search?.provider === 'kbar' &&
@@ -165,6 +191,7 @@ export default makeSource({
   onSuccess: async (importData) => {
     const { allBlogs } = await importData()
     createTagCount(allBlogs)
+    createPostStatisticByDate(allBlogs)
     createSearchIndex(allBlogs)
   },
 })
