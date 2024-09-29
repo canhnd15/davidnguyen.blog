@@ -42,11 +42,11 @@ export default async function Page() {
         </div>
         <div className="h-screen items-center justify-center">
           <div className="space-x-2 pb-8 md:space-y-5">
-            <h1 className="text-3xl font-extrabold leading-9 tracking-tight text-gray-900 dark:text-gray-100 sm:text-4xl sm:leading-10 md:px-6 md:text-6xl md:leading-14">
+            <h1 className="text-3xl font-extrabold leading-9 tracking-tight text-gray-900 text-white dark:text-gray-100 sm:text-4xl sm:leading-10 md:px-6 md:text-6xl md:leading-14">
               Statistic
             </h1>
           </div>
-          <div className="flex max-w-lg flex-wrap">
+          <div className="flex max-w-lg flex-col">
             {statisticKeys.length === 0 && 'No tags found.'}
             {statisticKeys.map((t) => {
               return (
@@ -54,7 +54,7 @@ export default async function Page() {
                   <h2 className="mx-2 my-1 font-medium text-primary-500 hover:text-primary-600 dark:hover:text-primary-400">
                     {t}
                   </h2>
-                  <span className="mx-2 my-1">{`[${statisticCounts[t]}]`} </span>
+                  <span className="mx-1 my-1">{`[${statisticCounts[t]}]`} </span>
                 </div>
               )
             })}

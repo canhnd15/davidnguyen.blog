@@ -87,13 +87,14 @@ function createPostStatisticByDate(allBlogs) {
   writeFileSync('./app/statistic-date-data.json', JSON.stringify(sortedData))
 }
 
-function getSortedData(data: Record<string, any>) {
-  Object.entries(data).sort((a, b) => {
+function getSortedData(data: Record<string, number>): Record<string, number> {
+  const sortedEntries = Object.entries(data).sort((a, b) => {
     const dateA = new Date(a[0]).getTime()
     const dateB = new Date(b[0]).getTime()
-
     return dateB - dateA
   })
+
+  return Object.fromEntries(sortedEntries) as Record<string, number>
 }
 
 function createSearchIndex(allBlogs) {
