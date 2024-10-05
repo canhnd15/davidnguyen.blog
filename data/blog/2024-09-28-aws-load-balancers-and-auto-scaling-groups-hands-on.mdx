@@ -1,0 +1,216 @@
+---
+title: '[AWS] - Load Balancers'
+date: '2024-09-28'
+lastmod: '2024-09-21'
+tags: ['EC2', 'ELB', 'AWS', 'cloud']
+draft: false
+summary: What happens when your application needs to handle a large volume of requests? One of the best solutions is to scale your application horizontally and implement load balancers. But what exactly is a load balancer, how does it work, and why should you use AWS-managed load balancer services? Let me explain it to you in this article.
+images: ['/static/img/posts/tokenbasedflow.png']
+layout: PostLayout
+---
+
+<TOCInline toc={props.toc} asDisclosure toHeading={3} />
+
+# 1. What are we going to do?
+
+- Explore some basic knowledge about Elastic Load Balancer (ELB).
+
+- Creating a demo Application Load Balancer with two EC2 instances using Target Group.
+
+# 2. Elastic Load Balancing (ELB).
+
+### 2.1 - What and why we need load balancing?
+
+- What is Load Balancing?
+
+-> Load balancing is a general term and it helps distribute incoming requests and traffic evenly across multiple servers. The main goal of load balancing is to ensure **high availability**, **reliability**, and **performance** by avoiding overloading a single server and avoiding downtime.
+
+- What is Elastic Load Balancing?
+
+-> Elastic Load Balancing is a type of load balancing **developed and managed by AWS**. Elastic Load Balancing automatically distributes your incoming traffic across multiple targets, such as EC2 instances, containers, and IP addresses, in one or more Availability Zones. It monitors the health of its registered targets, and routes traffic only to the healthy targets. Elastic Load Balancing scales your load balancer capacity automatically in response to changes in incoming traffic.
+
+- Why should we use ELB?
+
+-> If you want to create and manage your own load balancer, you'll need to prepare for several things, such as servers, technologies, and ensuring it operates correctly, along with other related tasks. While you have full control over access, you'll also need to manage many aspects yourself.
+
+-> ELB is a managed load balancer and AWS guarantees that it will be working, takes care of upgrades, maintenance, high availability, and provides only a few configuration. It costs less to setup your own load balancer.
+
+### 2.2 - Application Load Balancer (ALB).
+
+<div style={{ textAlign: 'center' }}>
+  <img
+    src="/static/img/posts/elb/application-load-balancer.png"
+    alt="Alt text"
+    title="image"
+    style={{ marginBottom: '4px' }}
+  />
+  <p style={{ marginTop: '0' }}>
+    <small>*Application Load Balancer flow*</small>
+  </p>
+</div>
+
+-> What is Application Load Balancer?
+
+> It's a **service** that operates at the application layer (layer 7 of the OSI model), designed to distribute incoming HTTP/HTTPS traffic to multiple targets, such as EC2 instances, containers, and IP addresses.
+
+-> Key features?
+
+- Content-based Routing
+- Target Groups
+- Health Checks
+- Autoscaling Integration
+- SSL Termination
+
+-> How it works?
+
+1. Clients make requests to your application.
+2. The listeners in your load balancer receive requests matching the protocol and port that you configure.
+3. The receiving listener evaluates the incoming request against the rules you specify, and if applicable, routes the request to the appropriate target group. You can use an HTTPS listener to offload the work of TLS encryption and decryption to your load balancer.
+4. Healthy targets in one or more target groups receive traffic based on the load balancing algorithm, and the routing rules you specify in the listener.
+
+### 2.3 - Gateway Load Balancer:
+
+<div style={{ textAlign: 'center' }}>
+  <img
+    src="/static/img/posts/elb/gateway-load-balancer.png"
+    alt="Alt text"
+    title="image"
+    style={{ marginBottom: '4px' }}
+  />
+  <p style={{ marginTop: '0' }}>
+    <small>*Gateway Load Balancer flow*</small>
+  </p>
+</div>
+
+-> What is Gateway Load Balancer?
+
+> It's a service operates at the network layer (layer 3 of the OSI model), designed to handle and distribute network traffic for third-party such as firewalls, prevention systems or network monitoring solutions.
+
+-> Key features:
+
+- Elastic Scaling
+- Health Checks
+- Appliance Load Balancing
+- Integration with AWS services
+
+-> How it works?
+
+1. Clients make requests to your application.
+2. The load balancer receives the request based on the route table configurations that are set within your VPC, Internet Gateway, or Transit Gateway.
+3. The load balancer routes requests to a target group consisting of a scalable fleet of appliances (for example, firewalls, deep packet inspection systems, URL filtering systems etc.) to process traffic flows.
+4. The virtual appliance processes the traffic, and forwards it back to the load balancer, or drops the traffic based on its configuration. This type of load balancer acts as a bump-in-the-wire between the source and destination.
+5. The load balancer forwards the traffic to its destination.
+
+### 2.4 - Network Load Balancer:
+
+<div style={{ textAlign: 'center' }}>
+  <img
+    src="/static/img/posts/elb/network-load-balancer.png"
+    alt="Alt text"
+    title="image"
+    style={{ marginBottom: '4px' }}
+  />
+  <p style={{ marginTop: '0' }}>
+    <small>*Network Load Balancer flow*</small>
+  </p>
+</div>
+
+-> What is Network Load Balancer?
+
+> Network Load Balancer operates at the transport layer (layer 4 of the OSI model), designed to handle high-performance, low-latency traffic and distribute it across multiple EC2 instances, containers, or IP addresses.
+
+-> Key features.
+
+- Static IP
+- Health Checks
+- Elastic IP support
+- Integration with VPC and IP Addressing
+
+-> How it works?
+
+1. Clients make requests to your application.
+2. The load balancer receives the request either directly or through an endpoint for private connectivity (via AWS PrivateLink).
+3. The listeners in your load balancer receive requests of matching protocol and port, and route these requests based on the default action that you specify. You can use a TLS listener to offload the work of encryption and decryption to your load balancer.
+4. Healthy targets in one or more target groups receive traffic according to the flow hash algorithm.
+
+-> Next steps, we will walk through an example of manually creating a simple Application Load Balancer with two EC2 instances using Target Group.
+
+# 4. Hands-on.
+
+**Step 1: Create two (or more) EC2 instances**:
+
+- Enter instances name and number of instances is 2 (or more if you want).
+
+![Alt text](/static/img/posts/elb/image3.png 'image')
+
+- Choose instances type -> `t2.micro` (free tier eligible).
+
+![Alt text](/static/img/posts/elb/image4.png 'image')
+
+- Generate key pair for securing connect to instances (we will install nginx via SSH later).
+
+![Alt text](/static/img/posts/elb/image5.png 'image')
+
+- Edit instances name and we have two EC2 instances are running.
+
+![Alt text](/static/img/posts/elb/image6.png 'image')
+
+-> To install Nginx for each instance, you can follow my previous post [here](https://anhdevchiase.com/blog/aws-route53-hands-on#4-deploy-static-sites-on-ec2-instances-to-different-regions)
+
+**Step 2: Setup Application Load Balancer manually**.
+
+-> **EC2 -> Load Balancers -> Create load balancer**
+
+![Alt text](/static/img/posts/elb/image1.png 'image')
+
+Choose `Application Load Balancer` -> Create (You can click on `Info` to get a brief overview of how the Application Load Balancer works).
+
+![Alt text](/static/img/posts/elb/image2.png 'image')
+
+- Enter load balancer name and leave basic configuration default.
+
+![Alt text](/static/img/posts/elb/image7.png 'image')
+
+-> **Security Group**
+
+- Create new Security Group and allow only HTTP requests into ALB.
+
+![Alt text](/static/img/posts/elb/image8.png 'image')
+
+![Alt text](/static/img/posts/elb/image9.png 'image')
+
+-> **Target Group**
+
+- Target group is a logical grouping of instances, containers, or IP addresses that receive the traffic routed by the load balancer. It plays a crucial role in defining how traffic is distributed among the back-end resources.
+
+![Alt text](/static/img/posts/elb/image10.png 'image')
+
+![Alt text](/static/img/posts/elb/image11.png 'image')
+
+![Alt text](/static/img/posts/elb/image12.png 'image')
+
+![Alt text](/static/img/posts/elb/image13.png 'image')
+
+![Alt text](/static/img/posts/elb/image14.png 'image')
+
+![Alt text](/static/img/posts/elb/image15.png 'image')
+
+- Leave other options default and click `Create load balancer`.
+
+![Alt text](/static/img/posts/elb/image16.png 'image')
+
+- Wait for `Status` is changed to `Active` and Application Load Balancer was created successfully.
+
+![Alt text](/static/img/posts/elb/image17.png 'image')
+
+- Copy the `DNS name` and paste it on the browser then you can see the requests auto redirect to one of two created instances.
+
+![Alt text](/static/img/posts/elb/image18.png 'image')
+
+![Alt text](/static/img/posts/elb/image19.png 'image')
+
+# 6. Conclusion.
+
+In this post, we covered the basics of AWS Load Balancer, explored its features, and created a demo with Application Load Balancer. I hope this article provides useful insights and helps you better understand Elastic Load Balancer. In the next post, we will discuss about Auto Scaling Group and use it to create a collection of Amazon EC2 instances treated as a logical unit.
+
+See you in the next posts. Happy Coding!
