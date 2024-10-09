@@ -1,35 +1,27 @@
 ---
-title: '[AWS] - How to safely host a static site on AWS using S3, Route53 and CloudFont.'
-date: '2024-09-21'
-lastmod: '2024-09-21'
-tags: ['S3', 'Route53', 'CloudFont', 'AWS', 'cloud']
+title: 'Bài học về THÁI ĐỘ khi đi phỏng vấn.'
+date: '2024-10-08'
+lastmod: '2024-10-08'
+tags: ['Share']
 draft: false
-summary: Amazon S3 (Amazon Simple Storage Service) is an object storage service and most commonly used for storing and protecting any amount of data. We can use Amazon S3 for various type of purposes and in this post I will share with you guys basic steps to host a static Angular site on Amazon S3.
-images: ['/static/img/posts/tokenbasedflow.png']
+summary: Người ta vẫn thường nói "thái độ hơn trình độ" nhưng đôi khi phải đặt trong hoàn cảnh cụ thể, trải qua chúng ta mới thấm tại sao người ta lại nói vậy. Hôm nay, mình sẽ chia sẻ với các bạn câu chuyện của chính mình về bài học quan trọng này.
+images: ['/static/img/cover/share/attiudeseverything.png']
 layout: PostLayout
 ---
 
 <TOCInline toc={props.toc} asDisclosure toHeading={3} />
 
-# 1. A brief of Amazon S3.
+# 1. Câu chuyện...
 
-> Amazon S3 (Amazon Simple Storage Service) is an object storage service that offers industry-leading scalability, data availability, security, and performance. Customers of all sizes and industries can use Amazon S3 to store and protect any amount of data for a range of use cases, such as data lakes, websites, mobile applications, backup and restore, archive, enterprise applications, IoT devices, and big data analytics. Amazon S3 provides management features so that you can optimize, organize, and configure access to your data to meet your specific business, organizational, and compliance requirements.
+Một cậu sinh viên IT ứng tuyển vào vị trí thực tập sinh tại một công ty công nghệ. Cậu ta tin với vốn kiến thức của mình thì chắc chắn sẽ được nhận vào thực tập.
 
-<div style={{ textAlign: 'center' }}>
-  <img
-    src="/static/img/posts/awss3/image1.png"
-    alt="Alt text"
-    title="image"
-    style={{ marginBottom: '4px' }}
-  />
-  <p style={{ marginTop: '0' }}>
-    <small>*This image show how data is moved to Amazon S3*</small>
-  </p>
-</div>
+Nhưng không, mặc dù kiến thức nền khá chắc nhưng cậu ta vẫn không được nhận. Các bạn có biết nguyên nhân vì sao không?
 
-- Here’s a brief introduction to Amazon S3. As you can see, Amazon S3 offers a variety of use cases, one of which is hosting static websites.
+Nếu không biết thì mình sẽ kể các bạn nghe câu chuyện phỏng vấn của cậu sinh viên đó.
 
-- If you're interested in learning more about the S3 service, you can find more information [here](https://docs.aws.amazon.com/s3/).
+Thường một công ty có quy trình tuyển dụng “chuẩn” sẽ có nhiều bước để đánh giá ứng viên ở nhiều mặt. Nhưng ở Việt Nam hầu hết các buổi phỏng vấn được tích hợp phỏng vấn cả về chuyên môn, thái độ, và tìm hiểu xem có phù hợp với văn hóa công ty thì mới tiến tới ký hợp đồng.
+
+Quay lại câu chuyện của cậu sinh viên, phần phỏng vấn về kỹ thuật diễn ra suôn sẻ. Nhưng trong phần kiểm tra về thái độ cậu đã không thể hiện được thái độ nghiêm túc với công việc chỉ qua hai câu hỏi của PM (Project Manager – người quản lý dự án) bên phía công ty.
 
 # 2. Prepare the Angular code.
 

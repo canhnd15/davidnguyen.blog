@@ -148,7 +148,7 @@ export const Blog = defineDocumentType(() => ({
 }))
 
 export const Share = defineDocumentType(() => ({
-  name: 'Blog',
+  name: 'Share',
   filePathPattern: 'share/**/*.mdx',
   contentType: 'mdx',
   fields: {
