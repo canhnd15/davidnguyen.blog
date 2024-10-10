@@ -1,4 +1,4 @@
-import ListLayout from '@/layouts/ListLayoutWithTags'
+import ListShare from '@/layouts/ListShare'
 import { allCoreContent, sortPosts } from 'pliny/utils/contentlayer'
 import { allShares } from 'contentlayer/generated'
 import { genPageMetadata } from 'app/seo'
@@ -20,7 +20,7 @@ export default function BlogPage() {
   }
 
   return (
-    <ListLayout
+    <ListShare
       posts={shares}
       initialDisplayPosts={initialDisplayPosts}
       pagination={pagination}
