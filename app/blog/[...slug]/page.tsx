@@ -12,6 +12,7 @@ import PostLayout from '@/layouts/PostLayout'
 import PostBanner from '@/layouts/PostBanner'
 import { Metadata } from 'next'
 import siteMetadata from '@/data/siteMetadata'
+import React from 'react'
 
 const isProduction = process.env.NODE_ENV === 'production'
 const defaultLayout = 'PostLayout'

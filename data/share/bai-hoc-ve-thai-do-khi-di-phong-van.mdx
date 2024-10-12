@@ -13,137 +13,90 @@ layout: PostLayout
 
 # 1. Câu chuyện...
 
-Một cậu sinh viên IT ứng tuyển vào vị trí thực tập sinh tại một công ty công nghệ. Cậu ta tin với vốn kiến thức của mình thì chắc chắn sẽ được nhận vào thực tập.
+Một cậu sinh viên ứng tuyển vào vị trí thực tập sinh tại một công ty công nghệ. Cậu ta tự tin với vốn kiến thức của mình thì sẽ được nhận vào thực tập.
 
-Nhưng không, mặc dù kiến thức nền khá chắc nhưng cậu ta vẫn không được nhận. Các bạn có biết nguyên nhân vì sao không?
+![Alt text](/static/img/share/attitude_more_aptitude_1.png 'image')
 
-Nếu không biết thì mình sẽ kể các bạn nghe câu chuyện phỏng vấn của cậu sinh viên đó.
+Nhưng không, mặc dù kiến thức tương đối tốt, làm bài test cũng ổn nhưng cậu ta vẫn không được nhận. Các bạn có biết tại sao không?
 
-Thường một công ty có quy trình tuyển dụng “chuẩn” sẽ có nhiều bước để đánh giá ứng viên ở nhiều mặt. Nhưng ở Việt Nam hầu hết các buổi phỏng vấn được tích hợp phỏng vấn cả về chuyên môn, thái độ, và tìm hiểu xem có phù hợp với văn hóa công ty thì mới tiến tới ký hợp đồng.
+Để mình sẽ kể các bạn nghe câu chuyện phỏng vấn của cậu sinh viên đó.
 
-Quay lại câu chuyện của cậu sinh viên, phần phỏng vấn về kỹ thuật diễn ra suôn sẻ. Nhưng trong phần kiểm tra về thái độ cậu đã không thể hiện được thái độ nghiêm túc với công việc chỉ qua hai câu hỏi của PM (Project Manager – người quản lý dự án) bên phía công ty.
+Thường một công ty có quy trình tuyển dụng sẽ có nhiều bước để đánh giá ứng viên ở nhiều mặt. Nhưng ở Việt Nam hầu hết các buổi phỏng vấn được tích hợp phỏng vấn cả về chuyên môn, thái độ, và tìm hiểu xem ứng viên có phù hợp với văn hóa của công ty không.
 
-# 2. Prepare the Angular code.
+Quay lại câu chuyện của cậu sinh viên, vòng phỏng vấn và bài test về chuyên môn diễn ra suôn sẻ. Nhưng trong phần phỏng vấn trực tiếp với PM dự án cậu sinh viên đó đã không thể hiện được thái độ nghiêm túc với công việc chỉ qua hai câu hỏi như sau:
 
-As mentioned, this article will explore how to host a static website on Amazon S3. But what exactly is a static website?
+> 1. Em có tìm hiểu công ty đang làm về domain (lĩnh vực) gì không?
 
-### 2.1 - What are static websites and use cases?
+Cậu sinh viên chỉ biết gãi đầu cười rồi lắc đầu và trả lời “Dạ, em không biết. Em tưởng phỏng vấn vào vị trí thực tập thì chỉ hỏi kiến thức cơ bản, sau vào mới được training thêm ạ.”
 
-> Static websites are websites where the content remains the same for every client. They are composed of **fixed HTML, CSS, and JavaScript files** that are served directly to users **without any server-side processing**.
+> 2. Nếu được nhận em dự định học một công nghệ mới trong bao lâu? Vì em nói là em chưa biết gì về ngôn ngữ này nên chị muốn hỏi xem thế nào?
 
-Use case for using static websites:
+Cậu sinh viên lại gãi đầu rồi trả lời một cách ấp úng: “Dạ em cũng không biết, chắc khoảng hai tháng chị ạ. Vì em còn bận đi học nữa, với lại em cũng muốn ứng tuyển để **thử** xem công việc như thế nào.”
 
-- Personal Portfolios
-- Business Landing Pages
-- Blogs and News Sites
-- Documentation and Knowledge Bases
-- Marketing Campaigns
-- Event Announcements
-- ...
+Đến đây chắc các bạn phần nào đã đoán được nguyên nhân tại sao cậu sinh viên kia lại không được nhận mặc dù có kiến thức và làm bài test tốt.
 
-### 2.2 - Prepare the source code.
+Chỉ qua hai câu hỏi như vậy nhà tuyển dụng có thể biết được thái độ của cậu sinh viên kia là chưa thực sự nghiêm túc với công việc. Vì sao? Vì việc tìm hiểu trước về công ty là một yêu cầu tối thiểu, đặc biệt là cho các bạn thực tập sinh vì kiến thức của các bạn chưa chắc đã _dùng được_ mà thái độ lại không cầu thị nữa thì...
 
-In this article, I will use a demo Angular site. You can follow the official Angular documentation [here](https://angular.dev/tutorials/first-app) to learn how to create it step by step.
+=> Thực ra đây là bài học của chính bản thân mình, cũng là bài học xương máu mà từ đó mình mới hiểu thế nào là “Thái độ HƠN trình độ”.
 
-If you’re just looking to practice with Amazon S3 and aren’t concerned about how the Angular site works, you can find the source code on my [GitHub](https://github.com/canhnd15/angular-first-app).
+# 2. Vậy làm sao để có THÁI ĐỘ TỐT?
 
-- Clone the source code:
+Trước tiên mình muốn các bạn hiểu rằng thái độ còn được thể hiện ở nhiều khía cạnh khác chứ không phải chỉ như trong câu chuyện mình chia sẻ bên trên.
 
-```sh
-❯ git clone https://github.com/canhnd15/angular-first-app.git
-Cloning into 'angular-first-app'...
-...
-Resolving deltas: 100% (15/15), done.
-```
+Thực tế chúng ta có thể nói là _Thái độ cầu tiến_, _Thái độ tích cực_, _Thái độ kiên trì_, _Thái độ khiêm tốn_. Có rất nhiều nhưng trong bài viết này mình đang muốn đề cập tới một loại thái độ có thể gọi là **THÁI ĐỘ NGHIÊM TÚC**.
 
-- Build source:
+Nghiêm túc ở đây không phải là kiểu _thanh niên nghiêm túc_. Nghiêm túc mình muốn nói ở đây đơn giản là cách cư xử, cách hành xử trong công việc nói riêng và cuộc sống nói chung từ đó thể hiện bạn là một người có trách nhiệm.
 
-```sh
-❯ cd angular-first-app
-❯ npm install
-❯ npm run build
-```
+Sau đây là một vài chia sẻ cũng như là kinh nghiệm của mình, hi vọng sẽ góp thêm một góc nhìn cho các bạn ha!
 
-- This is the source code after a successful build, and we will upload it onto Amazon S3 bucket.
+### 2.1 - Trong công việc, học tập.
 
-```sh
-❯ cd dist/first-app/browser
-❯ ll
+- **Rèn luyện tính chủ động:**
 
-total 608
-drwxr-xr-x  5 canhnd  staff   160B 14 Sep 22:48 assets
--rw-r--r--  1 canhnd  staff   5.2K 14 Sep 22:48 index.html
--rw-r--r--  1 canhnd  staff   254K 14 Sep 22:48 main-4DDFJQAB.js
--rw-r--r--  1 canhnd  staff    34K 14 Sep 22:48 polyfills-SCHOHYNV.js
--rw-r--r--  1 canhnd  staff   298B 14 Sep 22:48 styles-GSBFIRKP.css
-```
+Chủ động thực sự là một trong những cách tốt nhất để bạn tạo thái độ nghiêm túc trong công việc và học tập. Như câu chuyện bên trên của mình. Nếu biết cách chủ động tìm hiểu trước về công ty có lẽ mình đã trúng tuyển.
 
-# 3. Setup S3 bucket and host our site.
+Chủ động giúp chúng ta biết được mình phải làm gì, mình đang làm gì và phải làm như thế cho tốt. Nó giống như một sự chuẩn bị mà chuẩn bị đôi khi chính là thái độ - thái độ có nghiêm túc với việc mình làm thì mới chuẩn bị nó thật kỹ.
 
-This is the main part of the article, we will create and config a Amazon S3 bucket and then upload our source code onto it for publishing our site.
+- **Biết sai, sửa sai:**
 
-### 3.1 - Setup S3 bucket.
+Sai lầm là những điều chẳng thể tránh khỏi đặc biệt là ở cái tuổi chập chững vào đời và quan trọng là thái độ chúng ta đối mặt với sai lầm đó.
 
-> A bucket is a container for objects stored in Amazon S3. You can store any number of objects in a bucket and can have up to 100 buckets in your account.
+Người ta thường nói ngã đâu đứng lên ở đó. Mình tin chắc các bạn cũng đã từng vấp ngã và sẽ có hai luồng thái độ, hoặc là phó mặc (đặc biệt là khi ngã nhiều quá) hoặc là kiên trì bước tiếp.
 
-=> Step 1: Create bucket.
+Thực ra đó là tâm lý chung, không phải ai cũng có đủ bản lĩnh đối diện với quá nhiều thất bại nhưng hãy rèn luyện nó bằng cách suy nghĩ tích cực lên.
 
-![Alt text](/static/img/posts/awss3/image2.png 'image')
+Ví dụ như mình khi trượt buổi phỏng vấn đó mình cũng buồn lắm chứ, cứ trách mình rằng sao không chuẩn bị tốt hơn. Nhưng nếu không ngã làm sao mình có được bài học quý giá đó để rồi mình biết phải luôn thật nghiêm túc với công việc mình đang làm.
 
-- **NOTE**: In this post, I unchecked **Block all public access** because the focus is on using Amazon S3 to host a static site, and we need to provide public access to the resources in the S3 bucket. However, in real projects, we would typically leave this option checked by default to ensure the security of our resources.
+### 2.2 - Trong cuộc sống:
 
-![Alt text](/static/img/posts/awss3/image3.png 'image')
+Cuộc sống có lẽ có nhiều điều phải học hơn, mình cũng chẳng thể nói là có đủ kinh nghiệm hay trải nghiệm để chia sẻ với các bạn.
 
-![Alt text](/static/img/posts/awss3/image4.png 'image')
+Thái độ trong công việc và học tập có tích cực thì thái độ với cuộc sống mới tích cực được vì bản chất công việc hay học tập chỉ là một phần của cuộc sống.
 
-![Alt text](/static/img/posts/awss3/image5.png 'image')
+Để rèn luyện và nuôi dưỡng một thái độ sống tốt thì mình nghĩ _chủ động_ và _biết sửa sai_ vẫn là hai yếu tố rất quan trọng. Nhưng vẫn còn hai yếu tố khác nữa mà mình nghĩ cũng quan trọng không kém:
 
-=> Step 2: Config properties for static website hosting.
+- **Tôn trọng bản thân và người khác:**
 
-![Alt text](/static/img/posts/awss3/image6.png 'image')
+Bẩm sinh ai cũng có “cái tôi” cao ngất ngưởng vậy làm sao để vẫn hài hòa giữa cái tôi đó và mọi người xung quanh. Không hề dễ!
 
-- **NOTE**: Typically, a static site built with Angular or another frontend framework will include an `index.html` file, which serves as the home or default page of the website. We need to specify this file, along with an `error.html` file for undefined resources, as shown in the image below.
+Mình lấy ví dụ nhiều người mình quen là những người giỏi, rất giỏi ban đầu thường rất kiêu ngạo, luôn cho mình số một. Nhưng trải qua nhiều biến cố họ biết nhìn lại và hạ cái tôi xuống để trở thành một người có thái độ rất đáng nể.
 
-![Alt text](/static/img/posts/awss3/image7.png 'image')
+Ngược lại cũng có những người luôn tự ti về bản thân mình, không dám thể hiện, thường bị mọi người chê cười và để lấy lại tự tin cũng khó và cũng cần những biến cố.
 
-![Alt text](/static/img/posts/awss3/image8.png 'image')
+Tóm lại là hãy học cách tôn trọng chính mình, hạ cái tôi xuống, tự tin thể hiện mình và đồng thời tôn trọng mọi người xung quanh. Một người có thái độ như vậy mình chắc chắn đó là một người từng trải.
 
-=> Step 3: Config S3 policy.
+- **Rèn luyện:**
 
-![Alt text](/static/img/posts/awss3/image9.png 'image')
+Điều cuối cùng mình muốn nhắn nhủ là _hãy rèn luyện_. Chẳng ai dám nói tôi sai một lần là đủ, chẳng ai dám nói tôi chủ động hôm nay nghĩa là tôi chủ động cả đời.
 
-- Use S3 policy generator to generate policy. In this case, the policy contain only one action `s3:GetObject` for read only object.
+Một thái độ (thái độ sống) tốt là kết quả của cả một quá trình **sai -> sửa -> rút kinh nghiệm -> rèn luyện**
 
-![Alt text](/static/img/posts/awss3/image10.png 'image')
+Chẳng mấy ai mới sinh ra đã thắng được cái “bản năng” của mình. Vì vậy hãy rèn luyện mỗi ngày để chúng ta đón nhận, nhìn nhận cuộc sống này bằng một thái độ tốt nhất.
 
-=> We have created and configured the properties and policies for the S3 bucket. It is now ready to host our site.
+# 3. Kết luận.
 
-### 3.2 - Upload source code to S3 bucket.
+Nếu cuộc sống này là một **chiếc khóa** thì thái độ sống tốt chính là chiếc **chìa khóa** giúp chúng ta mở chiếc khóa đó một cách dễ dàng.
 
-Our source code includes files and folders, so we need to upload all of them to the root directory of the S3 bucket.
+Các bạn nghĩ sao về chủ đề này, hoặc những bạn có kinh nghiệm, từng trải thì hãy chia sẻ cùng mọi người nhé. Hẹn gặp các bạn trong các bài viết tiếp theo.
 
-- Upload files:
-
-![Alt text](/static/img/posts/awss3/image11.png 'image')
-
-- Upload folders:
-
-![Alt text](/static/img/posts/awss3/image12.png 'image')
-
-- Here are all the files and folders uploaded to the S3 bucket.
-
-![Alt text](/static/img/posts/awss3/image13.png 'image')
-
-### 3.3 - Check the site.
-
-- Open the **Properties** tab and scroll to the end. You will find a URL for your site. Click on this URL to view the uploaded site.
-
-![Alt text](/static/img/posts/awss3/image14.png 'image')
-
-![Alt text](/static/img/posts/awss3/image15.png 'image')
-
-# 4. Conclusion.
-
-- In this post, we explored the basic steps to host a static site on an Amazon S3 bucket. There is still much to do to refine and enhance the site to turn it into a fully-fledged product. In upcoming posts, I will guide you through the steps to achieve that.
-
-See you in the next posts. Happy Coding!
+Chúc các bạn trở thành một phiên bản tốt hơn của mình!
