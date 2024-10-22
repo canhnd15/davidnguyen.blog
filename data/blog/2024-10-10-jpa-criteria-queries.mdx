@@ -1,0 +1,179 @@
+---
+title: '[Spring] - JPA Criteria Queries'
+date: '2024-10-10'
+lastmod: '2024-10-10'
+tags: ['Spring Framework', 'Spring Data JPA']
+draft: false
+summary: When working with Java Persistence API (JPA), querying your data effectively is crucial. While JPQL (Java Persistence Query Language) is the most commonly used method for querying entities, JPA also offers another powerful option - Criteria Queries.
+images: ['/static/img/cover/posts/aws-load-balancer.png']
+layout: PostLayout
+---
+
+<TOCInline toc={props.toc} asDisclosure toHeading={3} />
+
+# 1. What Are JPA Criteria Queries?
+
+- JPA Criteria Queries are a **programmatic way** to create and execute database queries in Java. Instead of writing your queries as strings (like with JPQL), you build them using the JPA Criteria API, which is part of the `javax.persistence` package. This approach allows you to construct queries dynamically, using Java code.
+
+- The main advantage of Criteria Queries is **type safety** — since you work directly with your Java entity classes, the compiler can catch potential issues like typos in field names or invalid types, reducing runtime errors.
+
+- Additionally, Criteria Queries are ideal for scenarios where query conditions need to be built based on user input or other dynamic factors.
+
+# 2. Why Use Criteria Queries?
+
+### Key benefits to using Criteria Queries:
+
+- **Type Safety**: Since the queries are constructed programmatically using Java classes, the code is type-checked at compile-time.
+
+- **Dynamic Query Building**: Criteria Queries allow you to build queries dynamically based on conditions that aren’t known until runtime.
+
+- **Readability**: Though programmatic queries can sometimes seem verbose, they are easier to read and maintain in complex applications compared to long JPQL strings.
+
+- **Tooling Support**: Integrated development environments (IDEs) offer better refactoring support for Criteria Queries than string-based JPQL.
+
+### Key Components of JPA Criteria Queries
+
+- **CriteriaBuilder**: The entry point for creating Criteria Queries. It provides factory methods for building expressions, predicates, and query objects.
+
+- **CriteriaQuery**: Represents the query itself. It defines the result type (such as entities or scalar values) and contains the overall query structure.
+
+- **Root**: This is the query's starting point. It represents the entity that you are querying (like a table in SQL).
+
+- **Predicate**: Represents conditions (WHERE clauses) in the query. You can combine multiple predicates using logical operators such as AND and OR.
+
+- **TypedQuery**: Once your query is built, you execute it using a TypedQuery, which returns a list of results.
+
+# 3. Building a Basic Criteria Query
+
+Let’s walk through the steps to create a simple query using the Criteria API. Suppose we have a `Customer` entity, and we want to retrieve all customers from the database.
+
+### Set Up the Entities
+
+```Java
+@Entity
+public class Customer {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    private String firstName;
+
+    private String lastName;
+
+    // Getters and Setters
+}
+```
+
+### Building the Criteria Query
+
+Now let’s write the query to retrieve all `Customer` entities.
+
+```Java
+public List<Customer> getAllCustomers(EntityManager em) {
+    CriteriaBuilder cb = em.getCriteriaBuilder();
+    CriteriaQuery<Customer> cq = cb.createQuery(Customer.class);
+
+    Root<Customer> customer = cq.from(Customer.class); // From clause
+    cq.select(customer);
+
+    TypedQuery<Customer> query = em.createQuery(cq);
+    return query.getResultList();
+}
+```
+
+- In this sample code:
+
+  - We obtain a `CriteriaBuilder` instance from the EntityManager.
+  - We create a `CriteriaQuery<Customer>` object to define the query result type.
+  - A `Root<Customer>` object specifies the root entity being queried.
+  - The `cq.select(customer)` method tells JPA to retrieve all customers.
+  - Finally, we create a `TypedQuery` and execute it with `getResultList()`.
+
+### Adding Filters with Predicates
+
+Let’s say we want to filter customers based on their last name. We can add conditions using the `Predicate` interface.
+
+```Java
+public List<Customer> getCustomersByLastName(EntityManager em, String lastName) {
+    CriteriaBuilder cb = em.getCriteriaBuilder();
+    CriteriaQuery<Customer> cq = cb.createQuery(Customer.class);
+
+    Root<Customer> customer = cq.from(Customer.class);
+    cq.select(customer);
+
+    Predicate lastNamePredicate = cb.equal(customer.get("lastName"), lastName);
+    cq.where(lastNamePredicate);
+
+    TypedQuery<Customer> query = em.createQuery(cq);
+    return query.getResultList();
+}
+```
+
+- Here, we use `cb.equal()` to create a predicate that checks whether the `lastName` field matches the provided value. The `cq.where()` method adds this condition to the query.
+
+### Combining Multiple Predicates
+
+- You can combine multiple conditions using `AND` and `OR` logical operators. Suppose we want to retrieve customers with both a specific first name and last name.
+
+```Java
+public List<Customer> getCustomersByFullName(EntityManager em, String firstName, String lastName) {
+    CriteriaBuilder cb = em.getCriteriaBuilder();
+    CriteriaQuery<Customer> cq = cb.createQuery(Customer.class);
+
+    Root<Customer> customer = cq.from(Customer.class);
+    cq.select(customer);
+
+    Predicate firstNamePredicate = cb.equal(customer.get("firstName"), firstName);
+    Predicate lastNamePredicate = cb.equal(customer.get("lastName"), lastName);
+
+    cq.where(cb.and(firstNamePredicate, lastNamePredicate));
+
+    TypedQuery<Customer> query = em.createQuery(cq);
+    return query.getResultList();
+}
+```
+
+- Here, `cb.and()` combines the predicates for `firstName` and `lastName` into a single condition.
+
+### Ordering and Pagination.
+
+You can also add sorting and pagination to your queries. For example, to sort the customers by last name in ascending order:
+
+```Java
+public List<Customer> getCustomersSortedByLastName(EntityManager em) {
+    CriteriaBuilder cb = em.getCriteriaBuilder();
+    CriteriaQuery<Customer> cq = cb.createQuery(Customer.class);
+
+    Root<Customer> customer = cq.from(Customer.class);
+    cq.select(customer);
+
+    cq.orderBy(cb.asc(customer.get("lastName")));
+
+    TypedQuery<Customer> query = em.createQuery(cq);
+    return query.getResultList();
+}
+```
+
+For pagination, you can use the `setFirstResult()` and `setMaxResults()` methods:
+
+```Java
+public List<Customer> getPaginatedCustomers(EntityManager em, int page, int pageSize) {
+    CriteriaBuilder cb = em.getCriteriaBuilder();
+    CriteriaQuery<Customer> cq = cb.createQuery(Customer.class);
+
+    Root<Customer> customer = cq.from(Customer.class);
+    cq.select(customer);
+
+    TypedQuery<Customer> query = em.createQuery(cq);
+    query.setFirstResult((page - 1) * pageSize);
+    query.setMaxResults(pageSize);
+
+    return query.getResultList();
+}
+```
+
+# 4. Conclusion.
+
+JPA Criteria Queries offer a flexible and type-safe way to build dynamic queries. They are especially useful in scenarios where you need to construct queries based on user input or complex logic. By leveraging the Criteria API, you can reduce the risks associated with hardcoded queries, making your code easier to maintain and debug.
+
+See you in the next posts. Happy Coding!
