@@ -1,0 +1,468 @@
+---
+title: '[Spring] - Mastering Data Queries in Spring Data JPA: 8 Ways From Basic To Advance'
+date: '2024-10-21'
+lastmod: '2024-10-21'
+tags: ['Spring Framework', 'Spring Data JPA']
+draft: false
+summary: Spring Data JPA provides multiple ways to query data from a database, supporting various use cases, from simple to complex retrievals. In this post, we'll dive into each query type, explaining what it is, when to use it, providing examples to demonstrate how it work to help you decide the best approach for your projects.
+images: ['/static/img/cover/posts/aws-load-balancer.png']
+layout: PostLayout
+---
+
+<TOCInline toc={props.toc} asDisclosure toHeading={3} />
+
+# Introduction.
+
+In this post, we’ll walk through various query types in Spring Data JPA, showing how they work with related entities, using examples like `User` and `Address`. You’ll also learn when to choose each approach, ensuring your queries are optimized, flexible, and easy to maintain.
+
+For this guide, we’re using:
+
+- IDE: IntelliJ IDEA (recommended for Spring applications) or Eclipse
+- Java Version: 17
+- Spring Data JPA Version: 2.7.x or higher (compatible with Spring Boot 3.x)
+- Entities Used: `User` (representing a user profile) and `Address` (representing a user’s address details)
+
+**NOTE**: For more detailed examples, please visit my GitHub repository [here](https://github.com/canhnd15/spring-data-jpa-query-types)
+
+```Java
+@Setter
+@Getter
+@Entity(name = "tbl_address")
+public class Address {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    private String street;
+    private String city;
+    private String state;
+    private String country;
+    private String zipCode;
+}
+```
+
+```Java
+@Setter
+@Getter
+@Entity(name = "tbl_user")
+public class User {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    private String firstName;
+    private String lastName;
+    private String email;
+    private String status;
+
+    @OneToOne(cascade = CascadeType.ALL)
+    @JoinColumn(name = "address_id", referencedColumnName = "id")
+    private Address address;
+}
+```
+
+# 1. Derived Query Methods.
+
+**What is it?**
+
+- Derived Query Methods allow you to create queries directly from method names. By using attribute names in method signatures, Spring Data JPA automatically generates queries for simple lookups.
+
+**When to use it?**
+
+- We can use derived query methods for straightforward searches on a few fields. They're perfect for common queries like finding records by name or status.
+
+**Example**
+
+```Java
+public interface UserRepository extends JpaRepository<User, Long> {
+    List<User> findByFirstNameAndAddress_City(String firstName, String city);
+    List<User> findByStatusAndAddress_Country(String status, String country);
+}
+```
+
+**Testing**
+
+```Java
+@SpringBootTest
+@AutoConfigureMockMvc
+class QueryTypesApplicationTests {
+    @Autowired
+    private UserRepository userRepository;
+
+    @Test
+    public void testDerivedQueryMethods() {
+        List<User> usersByFirstNameAndCity = userRepository.findByFirstNameAndAddress_City("John", "Springfield");
+        List<User> usersByStatusAndCountry = userRepository.findByStatusAndAddress_Country("ACTIVE", "USA");
+
+        assertEquals(1, usersByFirstNameAndCity.size(), "Expected one user with first name 'John' and city 'Springfield'");
+        assertEquals(2, usersByStatusAndCountry.size(), "Expected two users with status ACTIVE and country is USA");
+    }
+
+}
+```
+
+# 2. JPQL (Java Persistence Query Language) Queries.
+
+**What is it?**
+
+- JPQL queries are custom queries defined with the `@Query` annotation, allowing more complex queries across entities while remaining database-independent.
+
+**When to use it?**
+
+- Ideal for queries involving multiple entities or filtering based on nested fields, where derived queries are insufficient.
+
+**Example**
+
+```Java
+@Repository
+public interface UserRepository extends JpaRepository<User, Long> {
+    @Query("SELECT u FROM tbl_user u JOIN u.address a WHERE u.status = :status AND a.city = :city")
+    List<User> findUsersByStatusAndCity(@Param("status") String status, @Param("city") String city);
+}
+```
+
+**Testing**
+
+```Java
+@SpringBootTest
+@AutoConfigureMockMvc
+class SpringDataJpaQueryTypesApplicationTests {
+
+    @Autowired
+    private UserRepository userRepository;
+
+    @Test
+    public void testDerivedQueryMethods() {
+        List<User> usersByStatusAndCity = userRepository.findUsersByStatusAndCity("ACTIVE", "NewYork");
+
+        assertEquals(1, usersByStatusAndCity.size(), "Expected one users with status ACTIVE and city is NewYork");
+    }
+
+}
+```
+
+# 3. Native SQL Queries.
+
+**What is it?**
+
+- Native SQL Queries allow you to execute raw SQL, providing direct access to database-specific features and optimizations.
+
+**When to use it?**
+
+- Use native queries when you need database-specific features or optimizations that JPQL doesn’t support.
+
+**Example**
+
+```Java
+@Repository
+public interface UserRepository extends JpaRepository<User, Long> {
+    @Query(
+            value = "SELECT * FROM tbl_user WHERE status = ?1",
+            nativeQuery = true
+    )
+    List<User> findUsersByStatus(String status);
+}
+```
+
+**Testing**
+
+```Java
+@SpringBootTest
+@AutoConfigureMockMvc
+class QueryTypesApplicationTests {
+    @Autowired
+    private UserRepository userRepository;
+
+    @Test
+    void testNativeQueries() {
+        List<User> usersByStatus = userRepository.findUsersByStatus("ACTIVE");
+
+        assertEquals(2, usersByStatus.size(), "Expected two users with status ACTIVE");
+    }
+
+}
+```
+
+# 4. Criteria API.
+
+**What is it?**
+
+- The Criteria API is a programmatic approach to building queries in Java, allowing dynamic query construction.
+
+**When to use it?**
+
+- Best for dynamic query creation based on multiple conditions, especially when search criteria vary at runtime.
+
+**Example**
+
+```Java
+@RequiredArgsConstructor
+public class UserRepository {
+    private final EntityManager entityManager;
+
+    public List<User> findUsersByStatusAndCity(String status, String city) {
+        CriteriaBuilder criteriaBuilder = entityManager.getCriteriaBuilder();
+        CriteriaQuery<User> cbQuery = criteriaBuilder.createQuery(User.class);
+        Root<User> user = cbQuery.from(User.class);
+        Join<User, Address> address = user.join("address", JoinType.INNER);
+
+        Predicate statusPredicate = criteriaBuilder.equal(user.get("status"), status);
+        Predicate cityPredicate = criteriaBuilder.equal(address.get("city"), city);
+
+        cbQuery.select(user).where(criteriaBuilder.and(statusPredicate, cityPredicate));
+
+        return entityManager.createQuery(cbQuery).getResultList();
+    }
+}
+```
+
+**Testing**
+
+```Java
+@SpringBootTest
+@AutoConfigureMockMvc
+class QueryTypesApplicationTests {
+    @Autowired
+    private UserRepository userRepository;
+
+    @Test
+    void contextCriteriaQuery() {
+        List<User> usersByStatus = userRepository.findUsersByStatusAndCity("ACTIVE", "NewYork");
+
+        assertEquals(1, usersByStatus.size(), "Expected 1 user with status ACTIVE and city is NewYork");
+    }
+
+}
+```
+
+# 5. Specification API.
+
+**What is it?**
+
+- The Specification API offers a dynamic, reusable way to create queries by defining specifications that can be combined and reused.
+
+**When to use it?**
+
+- Use specifications when you need reusable query components for complex filtering, such as advanced search features.
+
+**Example**
+
+```Java
+public interface UserRepository extends JpaRepository<User, Long>,
+        JpaSpecificationExecutor<User> {
+}
+```
+
+```Java
+public class UserSpec {
+
+    public static Specification<User> hasStatus(String status) {
+        return (root, query, criteriaBuilder) -> criteriaBuilder.equal(root.get("status"), status);
+    }
+
+    public static Specification<User> hasCity(String city) {
+        return ((root, query, criteriaBuilder) -> criteriaBuilder.equal(root.join("address").get("city"), city));
+    }
+
+}
+```
+
+**Testing**
+
+```Java
+@SpringBootTest
+@AutoConfigureMockMvc
+class QueryTypesApplicationTests {
+    @Autowired
+    private UserRepository userRepository;
+
+    @Test
+    void testSpecificationAPI() {
+        List<User> usersByStatusAndCity = userRepository.findAll(Specification.where(UserSpec.hasStatus("ACTIVE")).and(UserSpec.hasCity("NewYork")));
+
+        assertEquals(1, usersByStatusAndCity.size(), "Expected one user with status ACTIVE and city is NewYork");
+    }
+
+}
+```
+
+# 6. Entity Graphs.
+
+**What is it?**
+
+- Entity Graphs let you define fetch strategies for entity relationships, allowing optimized loading of associated entities.
+
+**When to use it?**
+
+- Use entity graphs for optimizing query performance when fetching related entities, especially to avoid the N+1 problem.
+
+**Example**
+
+```Java
+@Setter
+@Getter
+@Entity(name = "tbl_user")
+@NamedEntityGraph(name = "User.detail", attributeNodes = @NamedAttributeNode("address"))
+public class User {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    private String firstName;
+    private String lastName;
+    private String email;
+    private String status;
+
+    @OneToOne(cascade = CascadeType.ALL)
+    @JoinColumn(name = "address_id", referencedColumnName = "id")
+    private Address address;
+}
+```
+
+```Java
+public interface UserRepository extends JpaRepository<User, Long> {
+    @EntityGraph(value = "User.detail", type = EntityGraph.EntityGraphType.FETCH)
+    List<User> findByStatus(String status);
+}
+```
+
+**Testing**
+
+```Java
+@SpringBootTest
+@AutoConfigureMockMvc
+class QueryTypesApplicationTests {
+    @Autowired
+    private UserRepository userRepository;
+
+    @Test
+    void testGraphEntity() {
+        List<User> usersByStatus = userRepository.findByStatus("ACTIVE");
+
+        assertEquals(2, usersByStatus.size(), "Expected two users with status ACTIVE");
+    }
+
+}
+```
+
+# 7. Query by Example (QBE).
+
+**What is it?**
+
+- QBE enables query construction by passing an example entity with fields populated with the values you want to match.
+
+**When to use it?**
+
+- QBE is great for basic search forms or simple filtering based on an entity's attributes.
+
+**Example**
+
+```Java
+@Repository
+public interface UserRepository extends JpaRepository<User, Long> {
+}
+```
+
+```Java
+public class UserExample {
+    public static Example<User> findUsersByStatusAndCity (String status, String city) {
+        User exampleUser = new User();
+        exampleUser.setStatus(status);
+
+        Address exampleAddress = new Address();
+        exampleAddress.setCity(city);
+        exampleUser.setAddress(exampleAddress);
+
+        ExampleMatcher matcher = ExampleMatcher.matching()
+                .withIgnorePaths("id")
+                .withMatcher("address.city", ExampleMatcher.GenericPropertyMatchers.exact());
+
+        return Example.of(exampleUser, matcher);
+    }
+}
+```
+
+**Testing**
+
+```Java
+@SpringBootTest
+@AutoConfigureMockMvc
+class QueryTypesApplicationTests {
+    @Autowired
+    private UserRepository userRepository;
+
+    @Test
+    void testQueryByExample() {
+        Example<User> example = UserExample.findUsersByStatusAndCity("ACTIVE", "NewYork");
+
+        List<User> usersByExample = userRepository.findAll(example);
+
+        assertEquals(1, usersByExample.size(), "Expected one user with status ACTIVE and city is NewYork");
+    }
+
+}
+```
+
+# 8. Named Queries.
+
+**What is it?**
+
+- Named Queries are predefined JPQL queries that can be reused across the application, defined directly within entity classes.
+
+**When to use it?**
+
+- They’re useful for frequently used queries that don’t change, as they promote reusability and clarity.
+
+```Java
+@Setter
+@Getter
+@Entity(name = "tbl_user")
+@NamedQuery(name = "User.findByStatusAndCity",
+        query = "SELECT u FROM tbl_user u JOIN u.address a WHERE u.status = ?1 AND a.city = ?2")
+public class User {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    private String firstName;
+    private String lastName;
+    private String email;
+    private String status;
+
+    @OneToOne(cascade = CascadeType.ALL)
+    @JoinColumn(name = "address_id", referencedColumnName = "id")
+    private Address address;
+}
+```
+
+```Java
+@Repository
+public interface UserRepository extends JpaRepository<User, Long> {
+    List<User> findByStatusAndCity(String status, String city);
+}
+```
+
+**Testing**
+
+```Java
+@SpringBootTest
+@AutoConfigureMockMvc
+class QueryTypesApplicationTests {
+    @Autowired
+    private UserRepository userRepository;
+
+    @Test
+    void testNamedQueries() {
+        List<User> users = userRepository.findByStatusAndCity("ACTIVE", "NewYork");
+
+        assertEquals(1, users.size(), "Expected one user with status ACTIVE and city NewYork");
+    }
+
+}
+```
+
+# Conclusion.
+
+These examples showcase how to use each query type in Spring Data JPA with `User` and `Address` entities. By choosing the right query method, you can handle both simple and complex use cases, ensuring performance and flexibility in your application’s data layer.
+
+See you in the next posts. Happy Coding!
