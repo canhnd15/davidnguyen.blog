@@ -1,0 +1,262 @@
+---
+title: '[Spring] - How To Fetch Data By Using DTO Projection In Spring Data JPA'
+date: '2024-11-02'
+lastmod: '2024-11-02'
+tags: ['Spring Framework', 'Spring Data JPA']
+draft: false
+summary: In Spring Data JPA, projections provide a powerful way to retrieve specific fields or subsets of data from database without needing to load entire entities. This can help improve performance and reduce memory usage, especially when dealing with large data sets.
+images: ['/static/img/cover/posts/projection.png']
+layout: PostLayout
+---
+
+<TOCInline toc={props.toc} asDisclosure toHeading={3} />
+
+# Introduction
+
+In this post, we'll explore how projections work in Spring Data JPA, discuss different types, and walk through examples to demonstrate how they can simplify data access.
+
+For this guide, we’re using:
+
+- IDE: IntelliJ IDEA (recommended for Spring applications) or Eclipse
+- Java Version: 17
+- Spring Data JPA Version: 2.7.x or higher (compatible with Spring Boot 3.x)
+- Entities Used: `User` (representing a user profile) and `Address` (representing a user’s address details)
+
+**NOTE**: For more detailed examples, please visit my GitHub repository [here](https://github.com/canhnd15/spring-data-jpa-query-types)
+
+```Java
+@Setter
+@Getter
+@Entity(name = "tbl_address")
+public class Address {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    private String street;
+    private String city;
+    private String state;
+    private String country;
+    private String zipCode;
+}
+```
+
+```Java
+@Setter
+@Getter
+@Entity(name = "tbl_user")
+public class User {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    private String firstName;
+    private String lastName;
+    private String email;
+    private String status;
+
+    @OneToOne(cascade = CascadeType.ALL)
+    @JoinColumn(name = "address_id", referencedColumnName = "id")
+    private Address address;
+}
+```
+
+# 1. Why use Projections in Spring Data JPA?
+
+Often, your application only requires a subset of an entity's fields and loading unnecessary data can lead to:
+
+- Increased memory usage
+- Slow queries
+- Complex entity management when working with joined data
+
+Projections come to help us avoid issues by enabling you to fetch only the data you need and in the exact format you need. This is especially useful when fetching data for RESTful APIs where not all fields of an entity are required for the response.
+
+# 2. Type of Projections in Spring Data JPA.
+
+Spring Data JPA offers several types of projections:
+
+- Interface-based Projections
+- Class-based Projections (DTO projection)
+
+### 2.1 - Interface-based Projections
+
+Interface-based projections allow us to define **an interface with getter methods** for the fields you want to retrieve. Spring Data JPA will then use these getters to map the entity's fields to the interface.
+
+Example:
+
+- Define a projection interface and repository class:
+
+```Java
+@Repository
+public interface UserRepository extends JpaRepository<User, Long> {
+    @Query("""
+        SELECT
+            concat(u.firstName, ' ', u.lastName) as fullName,
+            u.email as email,
+            concat( a.street, ', ', a.city, ', ', a.state) as fullAddress,
+            a.country as country,
+            a.zipCode as zipCode
+        FROM tbl_user u
+        LEFT JOIN tbl_address a ON  u.address.id = a.id
+    """)
+    List<UserInfoProjection> findAllUserInfo();
+
+    interface UserInfoProjection {
+        String getFullName();
+        String getEmail();
+        String getFullAddress();
+        String getCountry();
+        String getZipCode();
+    }
+}
+```
+
+- Define a DTO class to transfer from projection to dto.
+
+```Java
+@Builder
+@Setter
+@Getter
+public class UserDTO {
+    private String fullName;
+    private String email;
+    private String address;
+    private String country;
+    private String zipCode;
+
+    public static UserDTO of(UserRepository.UserInfoProjection entity) {
+        if (Objects.isNull(entity))
+            return null;
+
+        return UserDTO.builder()
+                .fullName(entity.getFullName())
+                .email(entity.getEmail())
+                .address(entity.getFullAddress())
+                .country(entity.getCountry())
+                .zipCode(entity.getZipCode())
+                .build();
+    }
+}
+```
+
+- Testing:
+
+```Java
+@SpringBootTest
+@AutoConfigureMockMvc
+class QueryTypesApplicationTests {
+    @Autowired
+    private UserRepository userRepository;
+
+    @Test
+    public void testDerivedQueryMethods() {
+        List<UserDTO> results =  userRepository.findAllUserInfo()
+                .stream()
+                .map(UserDTO::of)
+                .toList();
+
+        assertEquals(10, results.size(), "Expected 10 users");
+    }
+
+}
+```
+
+### 2.2 - Class-based Projections
+
+With class-based projections, we can use a **custom DTO to map the results directly**. This approach gives you more control over the structure of your data and can be useful if you need custom logic in the constructor.
+
+Example:
+
+- Define DTO:
+
+```Java
+@Setter
+@Getter
+public class UserProjectionDTO {
+    private final String fullName;
+    private final String email;
+    private final String address;
+    private final String country;
+    private final String zipCode;
+
+    public UserProjectionDTO(String fullName, String email, String address, String country, String zipCode) {
+        this.fullName = fullName;
+        this.email = email;
+        this.address = address;
+        this.country = country;
+        this.zipCode = zipCode;
+    }
+}
+```
+
+- Define repository class and write sql query for getting user information.
+
+```Java
+@Repository
+public interface UserRepository extends JpaRepository<User, Long> {
+
+    @Query(
+        """
+            SELECT new com.davidnguyen.querytypes.user.UserProjectionDTO(
+                concat(u.firstName, ' ', u.lastName),
+                u.email,
+                concat(a.street, ', ', a.city, ', ', a.state),
+                a.country,
+                a.zipCode
+            )
+            FROM tbl_user u LEFT JOIN tbl_address a ON u.address.id = a.id
+        """
+    )
+    List<UserProjectionDTO> findAllUserInfo();
+}
+```
+
+Spring Data JPA executes a query that constructs a DTO for each row of data, selecting only the fields specified in the constructor.
+
+- Testing:
+
+```Java
+@SpringBootTest
+@AutoConfigureMockMvc
+class QueryTypesApplicationTests {
+    @Autowired
+    private UserRepository userRepository;
+
+    @Test
+    public void testDerivedQueryMethods() {
+        List<UserProjectionDTO> users = userRepository.findAllUserInfo();
+
+        assertEquals(10, users.size(), "Expected 10 users");
+    }
+
+}
+```
+
+# 3. Choosing the right Projection type
+
+Each projection type has its use case:
+
+- **Interface-based projections** are ideal for simple field selections.
+- **Class-based projection** are better for complex transformations or custom logic.
+- **Dynamic projections** are great when you need flexibility and want to support multiple projection types without duplicating code.
+
+Performance notes:
+
+- Complex projections can lead too more complex queries, which may impact performance.
+- Class-based projections using DTOs my introduce overhead, especially for large result sets, because each row requires a new DTO instance. So always monitor and optimize queries as needed.
+
+# 4. Best practices for DTO projections in Spring Data JPA.
+
+- **Select Only the Fields You Need**: Whether using class or interface-based projections, always limit the selection to only the necessary fields to optimize database load.
+
+- **Use Immutability for DTOs**: For class-based projections, create DTOs that are immutable (final fields, no setters) to make them safe and stable.
+
+- **Consider Native Queries for Complex Joins**: If your projections involve complex joins or calculated fields, consider using a native SQL query with `@SqlResultSetMapping` and `@ConstructorResult` annotations for more control.
+
+- **Profile Queries for Performance**: Especially with large datasets, use profiling tools (like JPA/Hibernate logging) to monitor the query performance and ensure that your projections aren’t inadvertently loading extra data.
+
+# Wrapping up
+
+Projections in Spring Data JPA offer powerful options for controlling the data returned from the queries. By using interface-based, class-based and dynamic projections, you can fine-tune data retrieval to match you application's requirements. And keep in mind that, implementing projections effectively leads to more efficient data handling, especially in applications with large data sets.
+
+See you in the next posts. Happy Coding!
