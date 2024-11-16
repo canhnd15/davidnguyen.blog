@@ -10,7 +10,7 @@ export default function Books() {
       <div className="divide-y divide-gray-200 dark:divide-gray-700">
         <div className="space-y-2 pb-4 pt-6 text-center md:space-y-5">
           <h1 className="font-mono text-xl leading-7 text-gray-500 dark:text-gray-400">
-            "ĐỌC MỘT CUỐN SÁCH, ĐI VẠN ĐẶM ĐƯỜNG!"
+            "ĐỌC MỘT CUỐN SÁCH, ĐI VẠN DẶM ĐƯỜNG!"
           </h1>
         </div>
         <div className="container py-12">
