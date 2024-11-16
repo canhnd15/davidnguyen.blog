@@ -1,0 +1,65 @@
+---
+title: '[Architecture] - An Introduction About Multi-Tenancy And How To Use In Spring Application'
+date: '2024-11-09'
+lastmod: '2024-11-09'
+tags: ['Spring Framework', 'Multi-Tenancy', 'software-architecture']
+draft: false
+summary: Multi-tenancy refers to an architecture in which a single instance of an application serves multiple tenants of customers. Each tenant has isolated data access, which means that while they share the same application, they have separate data storage.
+images: ['/static/img/cover/posts/projection.png']
+layout: PostLayout
+---
+
+<TOCInline toc={props.toc} asDisclosure toHeading={3} />
+
+# Introduction
+
+In this post, we'll explore some basic about **multi-tenancy** - a kind of architectural approach where a single application instance serves multiple customer, known as **tenants**, and how to implement simple example of applying multi-tenancy architectural in Spring application.
+
+For this guide, we’re using:
+
+- IDE: IntelliJ IDEA (recommended for Spring applications) or Eclipse
+- Java Version: 17
+- Spring Data JPA Version: 2.7.x or higher (compatible with Spring Boot 3.x)
+
+**NOTE**: For more detailed examples, please visit my GitHub repository [here](https://github.com/canhnd15/spring-data-jpa-query-types)
+
+# 1. What is Multi-Tenancy?
+
+Before talking about multi-tenancy, let's talk about single tenancy. It's a software architecture where each customer or tenant has their **own dedicated instance of the application** and, often, a **separate database**.
+
+# 2. Why Use Multi-Tenancy?
+
+Spring Data JPA offers several types of projections:
+
+- Interface-based Projections
+- Class-based Projections (DTO projection)
+
+### 2.1 - Interface-based Projections
+
+Interface-based projections allow us to define **an interface with getter methods** for the fields you want to retrieve. Spring Data JPA will then use these getters to map the entity's fields to the interface.
+
+- Define a DTO class to transfer from projection to dto.
+
+# 3. Type of Multi-Tenancy Strategies
+
+### 3.1 - Shared Database with Shared Schema
+
+### 3.2 - Shared Database with Separate Schema
+
+### 3.3 - Separate Database
+
+# 4. Implement Multi-Tenancy in a Spring Boot Application
+
+- **Select Only the Fields You Need**: Whether using class or interface-based projections, always limit the selection to only the necessary fields to optimize database load.
+
+- **Use Immutability for DTOs**: For class-based projections, create DTOs that are immutable (final fields, no setters) to make them safe and stable.
+
+- **Consider Native Queries for Complex Joins**: If your projections involve complex joins or calculated fields, consider using a native SQL query with `@SqlResultSetMapping` and `@ConstructorResult` annotations for more control.
+
+- **Profile Queries for Performance**: Especially with large datasets, use profiling tools (like JPA/Hibernate logging) to monitor the query performance and ensure that your projections aren’t inadvertently loading extra data.
+
+# Wrapping up
+
+Projections in Spring Data JPA offer powerful options for controlling the data returned from the queries. By using interface-based, class-based and dynamic projections, you can fine-tune data retrieval to match you application's requirements. And keep in mind that, implementing projections effectively leads to more efficient data handling, especially in applications with large data sets.
+
+See you in the next posts. Happy Coding!
