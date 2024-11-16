@@ -1,0 +1,231 @@
+---
+title: '[Spring Framework] - Spring Data JPA Stream Query Methods'
+date: '2024-11-12'
+lastmod: '2024-11-12'
+tags: ['Spring Framework', 'Spring Data JPA']
+draft: false
+summary: Spring Data JPA is a powerful abstraction over JPA (Java Persistence API), simplifying the data access layer for developers. Among its numerous features, Stream Query methods stand out for enabling efficient and memory-conscious data retrieval, especially when dealing with large datasets.
+images: ['/static/img/cover/posts/stream-query.png']
+layout: PostLayout
+---
+
+<TOCInline toc={props.toc} asDisclosure toHeading={3} />
+
+# Introduction
+
+Traditionally, fetching large amounts of data can strain memory resources, as it often involves loading the entire result set into memory.
+
+=> Stream query methods offer a solution by providing a way to **process data incrementally using Java 8 Streams**. This ensures that only a portion of the data is held in memory at any time, enhancing performance and scalability.
+
+In this blog post, we'll dive deep into how stream query methods work in Spring Data JPA, explore their use cases, and demonstrate their implementation.
+
+For this guide, we’re using:
+
+- IDE: **IntelliJ IDEA** (recommended for Spring applications) or Eclipse
+- Java Version: **17**
+- Spring Data JPA Version: 2.7.x or higher (compatible with Spring Boot 3.x)
+
+```xml
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-data-jpa</artifactId>
+</dependency>
+```
+
+**NOTE**: For more detailed examples, please visit my GitHub repository [here](https://github.com/canhnd15/spring-data-jpa-query-types)
+
+# 1. What are Stream Query Methods?
+
+Stream query methods in Spring Data JPA allow us to return query results as a `Stream<T>` instead of a `List<T>` or other collection types. This approach provides several benefits:
+
+- **Efficient Resource Management**: Data is processed incrementally, reducing memory overhead.
+- **Lazy Processing**: Results are fetched and processed on-demand, which is ideal for scenarios like pagination or batch processing.
+- **Integration with Functional Programming**: Streams fit with Java's functional programming features, enabling operations like `filter`, `map`, and `collect`.
+
+# 2. How To Use Stream Query Methods?
+
+=> Let's imagine that we are developing an e-commerce application and want to:
+
+- Retrieve all customers who placed orders after a specific date.
+- Filter orders with a total amount above a specific provided amount.
+- Group customers by their total order value within the last 6 months.
+- Return the data as a summary of customer names and their total order values.
+
+### Entities
+
+- `Customer`: Represents a customer.
+
+```Java
+@Setter
+@Getter
+@Entity
+@Entity(name = "tbl_customer")
+public class Customer {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    private String name;
+    private String email;
+
+    @OneToMany(mappedBy = "customer", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private List<Order> orders;
+}
+```
+
+- `Order`: Represents an order placed by a customer.
+
+```Java
+@Setter
+@Getter
+@Entity(name = "tbl_order")
+public class Order {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    private Double amount;
+    private LocalDateTime orderDate;
+
+    @ManyToOne
+    @JoinColumn(name = "customer_id")
+    private Customer customer;
+}
+```
+
+### Repository
+
+- `CustomerRepository` for selecting customers and their associated orders placed after a specific date. And we used `Stream<Customer>` instead of `List<Customer>` to handle
+
+```java
+public interface CustomerRepository extends JpaRepository<Customer, Long> {
+    @Query("""
+                SELECT c FROM tbl_customer c JOIN FETCH c.orders o WHERE o.orderDate >= :startDate
+            """)
+    @QueryHints(
+            @QueryHint(name = AvailableHints.HINT_FETCH_SIZE, value = "25")
+    )
+    Stream<Customer> findCustomerWithOrders(@Param("startDate") LocalDateTime startDate);
+}
+```
+
+NOTE:
+
+- The `JOIN FETCH` ensures orders are eagerly loaded.
+- The `@QueryHints` used to provide additional hints to the JPA provides (e.g,. Hibernate) to optimize the query execution.
+
+=> For example, when my query return 100 records:
+
+- The first 25 records are fetched and processed by the application.
+- Once those are processed, the next 25 are fetched, and so on, until all 100 records are processed.
+- This behavior minimizes memory usage and avoids loading all 100 records into memory at once.
+
+### Service
+
+```java
+@Service
+@RequiredArgsConstructor
+public class CustomerOrderService {
+    private final CustomerRepository customerRepository;
+
+    @Transactional(readOnly = true)
+    public Map<String, Double> getCustomerOrderSummary(LocalDateTime startDate, Double minOrderAmount) {
+        try (Stream<Customer> customerStream = customerRepository.findCustomerWithOrders(startDate)) {
+            return customerStream
+                    // Filter customers with orders above the threshold
+                    .flatMap(customer -> customer.getOrders().stream()
+                            .filter(order -> order.getAmount() >= minOrderAmount)
+                            .map(order -> new AbstractMap.SimpleEntry<>(customer.getName(), order.getAmount())))
+                    // Group by customer name and sum order amounts
+                    .collect(Collectors.groupingBy(
+                            AbstractMap.SimpleEntry::getKey,
+                            Collectors.summingDouble(AbstractMap.SimpleEntry::getValue)
+                    ));
+        }
+    }
+}
+```
+
+- Here's the service class to process the data with two parameters `startDate` and `minOrderAmount`. As you can see, we don't filter by using sql query and load all data as stream then filter and group by our Java code.
+
+### Controller
+
+```java
+@RestController
+@RequestMapping("/customers")
+@RequiredArgsConstructor
+public class CustomerOrderController {
+    private final CustomerOrderService customerOrderService;
+
+    @GetMapping("/orders")
+    public ResponseEntity<Map<String, Double>> getCustomerOrderSummary(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+            @RequestParam Double minOrderAmount
+    ) {
+        Map<String, Double> orderSummary = customerOrderService.getCustomerOrderSummary(startDate, minOrderAmount);
+        return ResponseEntity.ok(orderSummary);
+    }
+}
+```
+
+### Testing
+
+=> To create dummy data for testing, you can execute script:
+
+**src/main/resources/dummy-data.sql**
+
+Request:
+
+- startDate: 2024-05-01T00:00:00
+- minOrderAmount: 100
+
+```curl
+curl --location 'http://localhost:8090/customers/orders?startDate=2024-05-01T00%3A00%3A00&minOrderAmount=100'
+```
+
+Response:
+
+- Return all customers and their total amount which equal or greater than minOrderAmount
+
+```json
+{
+  "Jane Roe": 500.0,
+  "John Doe": 150.0,
+  "Bob Brown": 350.0,
+  "Alice Smith": 520.0
+}
+```
+
+# 3. Stream vs List
+
+=> You can use [IntelliJ Profiler](https://lp.jetbrains.com/intellij-idea-profiler) to monitor memory usage and execution time. For more detail about how to add and test with large data set, you can find in my GitHub [repository](https://github.com/canhnd15/stream-query-methods/tree/stream-vs-list)
+
+**Small Dataset: (10 customers, 100 orders)**
+| | Execution Time | Memory Usage |
+|----------|----------------|----------|
+| Stream | ~5ms | Low |
+| List | ~3ms | Low |
+
+**Large Dataset (10.000 customers, 100.000 orders)**
+| | Execution Time | Memory Usage |
+|----------|----------------|----------|
+| Stream | ~200ms | Moderate |
+| List | ~160ns | High |
+
+**Performance Metrics**
+| Metric | Stream | List |
+|----------|----------------|----------|
+| **Initial Fetch Time** | Slightly slower (due to lazy loading) | Faster (all at once) |
+| **Memory Consumption** | Low (incremental processing) | High (entire dataset in memory) |
+| **Memory Consumption** | Low (incremental processing) | High (entire dataset in memory) |
+| **Processing Overhead** | Efficient for large datasets | May cause memory issues for large datasets |
+| **Batch Fetching** | Supported (with fetch size) | Not applicable |
+| **Error Recovery** | Graceful with early termination | Limited, as data is preloaded |
+
+# Wrapping up
+
+Spring Data JPA stream query methods offer an elegant way to process large datasets efficiently while leveraging the power of Java Streams. By processing data incrementally, they reduce memory consumption and integrate seamlessly with modern functional programming paradigms.
+
+What are your thoughts on stream query methods? Share your experiences and use cases in the comments below!
+
+See you in the next posts. Happy Coding!
