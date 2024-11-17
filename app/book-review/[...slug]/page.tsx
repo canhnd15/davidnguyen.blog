@@ -6,7 +6,7 @@ import { components } from '@/components/MDXComponents'
 import { MDXLayoutRenderer } from 'pliny/mdx-components'
 import { sortPosts, coreContent } from 'pliny/utils/contentlayer'
 import { allBookReviews, allAuthors } from 'contentlayer/generated'
-import type { Authors, Share } from 'contentlayer/generated'
+import type { Authors, BookReview } from 'contentlayer/generated'
 import PostSimple from '@/layouts/PostSimple'
 import PostLayout from '@/layouts/PostLayout'
 import PostBanner from '@/layouts/PostBanner'
@@ -83,11 +83,11 @@ export const generateStaticParams = async () => {
 
 export default async function Page({ params }: { params: { slug: string[] } }) {
   const slug = decodeURI(params.slug.join('/'))
-  const sortedPosts = sortPosts(allBookReviews) as Share[]
+  const sortedPosts = sortPosts(allBookReviews) as BookReview[]
   const postIndex = sortedPosts.findIndex((p) => p.slug === slug)
   const prev = coreContent(sortedPosts[postIndex + 1])
   const next = coreContent(sortedPosts[postIndex - 1])
-  const post = sortedPosts.find((p) => p.slug === slug) as Share
+  const post = sortedPosts.find((p) => p.slug === slug) as BookReview
   const authorList = post?.authors || ['default']
   const authorDetails = authorList.map((author) => {
     const authorResults = allAuthors.find((p) => p.slug === author)
