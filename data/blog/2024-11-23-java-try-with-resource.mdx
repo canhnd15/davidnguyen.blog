@@ -1,0 +1,222 @@
+---
+title: '[Java] - Simplify Resource Management With Try-With-Resources'
+date: '2024-11-23'
+lastmod: '2024-11-23'
+tags: ['Java']
+draft: false
+summary: Before Java 7, developers relied heavily on the traditional try-catch-finally approach to manage resources, which was often verbose and error-prone. With the introduction of try-with-resources, Java simplified this process significantly.
+images: ['/static/img/cover/posts/stream-query.png']
+layout: PostLayout
+---
+
+<TOCInline toc={props.toc} asDisclosure toHeading={3} />
+
+# 1. Try-Catch-Finally vs Try-With-Resource
+
+In Java, resource management is an important aspect of writing clean, efficient, and error-free code. Resources like file streams, database connections, and network connections often need to be properly closed after use to avoid memory leaks and other issues.
+
+Java 7 introduced a powerful feature called try-with-resources, which simplifies this process and helps prevent resource leaks.
+
+In this post, we’ll compare the traditional try-catch-finally block with try-with-resources, discuss its advantages, explore use cases, and share some best practices.
+
+Let's compare two blocks of code:
+
+- Using `try-catch-finally` for reading from a file:
+
+```Java
+public static void readTextFileByLineWithTryCatch(String fileName) {
+    FileReader fileReader = null;
+    BufferedReader bufferedReader = null;
+
+    try {
+        fileReader = new FileReader(fileName);
+        bufferedReader = new BufferedReader(fileReader);
+        String line = bufferedReader.readLine();
+        int i = 0;
+        while (line != null) {
+            i++;
+            System.out.printf("Line %s : %s", i, line);
+            line = bufferedReader.readLine();
+        }
+    } catch (IOException e) {
+        log.info(e.getMessage());
+    } finally {
+        try {
+            if (bufferedReader != null) {
+                bufferedReader.close();
+            }
+            if (fileReader != null) {
+                fileReader.close();
+            }
+        } catch (IOException e) {
+            log.info(e.getMessage());
+        }
+    }
+}
+```
+
+- Using `try-with-resource` to read from file:
+
+```Java
+public static void readTextFileByLineWithTryResource(String fileName) {
+    try (
+            FileReader fileReader = new FileReader(fileName);
+            BufferedReader bufferedReader = new BufferedReader(fileReader)
+    ) {
+        String line = bufferedReader.readLine();
+        int i = 0;
+        while (line != null) {
+            i++;
+            System.out.printf("Line %s : %s", i, line);
+            line = bufferedReader.readLine();
+        }
+    } catch (IOException e) {
+        log.info(e.getMessage());
+    }
+}
+```
+
+As you can see in this version of using `try-with-resource`:
+
+- Resources are declared in the parentheses of the try statement, and they will be **automatically closed** after the try block finishes.
+- No need for an explicit finally block to close resources.
+- The code is more concise and easier to maintain.
+
+# 2. Advantages of Using Try-With-Resource
+
+The `try-with-resource` provides several advantages over the traditional `try-catch-finally` approach:
+
+- **Auto Close Resource**: Resources that implement the `AutoCloseable` interface (file streams, database connections, etc.) are automatically closed at the end of the `try` block, even if an exception occurs.
+- **Cleaner Code**: As you can see in the example before, with `try-with-resource`, there is no need to explicit `finally` blocks to close resources, making the code more cleaner and less error-prone.
+- **Reduced Boilerplate Code**: We don't have to write repetitive code to close resources in the `finally` block, making the code more readable.
+- **Exception Handing**: If an exception occurs while closing the resources, it will be logged, preventing potential issues from going unnoticed.
+- **No Resource Leak**: `Try-With-Resource` guarantees that resources are always released, even when an exception occurs, reducing the chance of memory leaks and resource exhaustion.
+
+# 3. Use Cases of Try-With-Resource with Real Examples
+
+### **File I/O Operations**
+
+- One of the most common use cases for `try-with-resources` is file I/O operations. By using `BufferedReader`, `FileReader`, and similar classes that implement the `AutoCloseable` interface, we can handle file reading and closing in a concise manner.
+
+```Java
+public class FileReadingUtil {
+    public static void main(String[] args) {
+        try (
+            FileReader fileReader = new FileReader("data.txt");
+            BufferedReader reader = new BufferedReader(fileReader)
+        ) {
+            String line;
+            int i = 0;
+            while ((line = reader.readLine()) != null) {
+                i++;
+                System.out.printf("Line %s : %s", i, line);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+}
+```
+
+### **Database Connection Management**
+
+- Managing database connections is another classic use case. With `try-with-resources`, you can automatically close database connections, Statement, and ResultSet objects.
+
+```Java
+public class DatabaseUtil {
+    private static final Logger log = LoggerFactory.getLogger(DatabaseUtil.class);
+
+    private static final String URL = "jdbc:mysql://localhost:3306/test-db";
+    private static final String USER = "root";
+    private static final String PASSWORD = "root";
+
+    public static Connection getConnection() throws SQLException {
+        return DriverManager.getConnection(URL, USER, PASSWORD);
+    }
+
+    public static List<Map<String, Object>> getEmployees() {
+        String query = """
+                        SELECT * FROM employees
+                        """;
+
+        List<Map<String, Object>> result = new ArrayList<>();
+
+        try (
+                Connection connection = getConnection();
+                Statement statement = connection.createStatement();
+                ResultSet resultSet = statement.executeQuery(query)
+        ) {
+            while (resultSet.next()) {
+                Map<String, Object> emp = new HashMap<>();
+                emp.put("name", resultSet.getString("name"));
+                emp.put("address", resultSet.getString("address"));
+
+                result.add(emp);
+            }
+        } catch (SQLException e) {
+            log.info(e.getMessage());
+        }
+        return result;
+    }
+}
+```
+
+### **Network Resources**
+
+- When dealing with network resources such as socket connections, `try-with-resources` can automatically close the socket after use, ensuring proper resource management.
+
+```Java
+public class NetworkUtil {
+    private static final Logger log = LoggerFactory.getLogger(NetworkUtil.class);
+
+    public static void main(String[] args) {
+        // The host and port of the server we want to connect to
+        String host = "localhost";
+        int port = 8080;
+
+        // Try-with-resources ensures the socket is closed automatically
+        try (
+                Socket socket = new Socket(host, port); // Creates a client socket and connects to the specified host and port
+                OutputStream output = socket.getOutputStream(); // Gets the output stream to send data to the server
+                PrintWriter writer = new PrintWriter(output, true); // Wraps the output stream for convenient text writing
+                InputStream input = socket.getInputStream(); // Gets the input stream to read data from the server
+                BufferedReader reader = new BufferedReader(new InputStreamReader(input)) // Wraps the input stream for line-by-line reading
+        ) {
+            writer.println("Hello Server!"); // Sending a request or message to the server
+
+            String response = reader.readLine(); // Reading the server's response
+            System.out.println("Server Response: " + response);
+        } catch (IOException e) {
+            log.info(e.getMessage()); // Handles exceptions related to socket communication
+        }
+    }
+}
+```
+
+# 4. Best Practices for Using Try-With-Resources
+
+Here are some best practices when using `try-with-resources`:
+
+- `AutoCloseable Resources`: Ensure that the resources you use implement the `AutoCloseable` interface, or are subclasses of `java.io.Closeable`. Most I/O classes in Java already implement this interface, so you can use them directly.
+- `Multiple Resources`: You can manage multiple resources within a single try block. Make sure to separate them with semicolons. However, avoid too many resources in a single try block as it can reduce code readability.
+
+```Java
+try (
+    FileReader fileReader = new FileReader("file.txt");
+    BufferedReader reader = new BufferedReader(fileReader);
+    Socket socket = new Socket("localhost", 8080)
+) {
+    //TODO
+}
+```
+
+- **Handle Exceptions Properly**: Even though resources are automatically closed, handle exceptions related to the resources in the catch block. Be mindful of suppressed exceptions, which are exceptions that occur when closing resources. You can access suppressed exceptions by calling e.getSuppressed() on the exception caught in the catch block.
+- **Close Database Connections**: Always use `try-with-resources` when managing database connections, `Statement`, and `ResultSet` objects to ensure they are properly closed after use, avoiding potential connection leaks.
+
+# 5. Conclusion
+
+In conclusion, `try-with-resources` is a powerful feature that simplifies resource management in Java. By automatically closing resources and reducing the need for verbose boilerplate code, it helps improve code readability, maintainability, and reliability.
+
+Whether you're working with file I/O, database connections, or network resources, try-with-resources can help you write cleaner, more efficient code. By following best practices and understanding the power of this feature, you can avoid common pitfalls and resource leaks in your Java applications.
+
+See you in the next posts. Happy Coding!
