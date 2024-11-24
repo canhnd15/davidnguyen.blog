@@ -24,19 +24,19 @@ Let's compare two blocks of code:
 - Using `try-catch-finally` for reading from a file:
 
 ```Java
-public static void readTextFileByLineWithTryCatch(String fileName) {
+public static void readTextFileByLineWithTryCatch(String filePath) {
     FileReader fileReader = null;
     BufferedReader bufferedReader = null;
 
     try {
-        fileReader = new FileReader(fileName);
+        fileReader = new FileReader(filePath);
         bufferedReader = new BufferedReader(fileReader);
         String line = bufferedReader.readLine();
         int i = 0;
         while (line != null) {
             i++;
-            System.out.printf("Line %s : %s", i, line);
             line = bufferedReader.readLine();
+            System.out.printf("Line %s : %s \n", i, line);
         }
     } catch (IOException e) {
         log.info(e.getMessage());
@@ -67,8 +67,8 @@ public static void readTextFileByLineWithTryResource(String fileName) {
         int i = 0;
         while (line != null) {
             i++;
-            System.out.printf("Line %s : %s", i, line);
             line = bufferedReader.readLine();
+            System.out.printf("Line %s : %s \n", i, line);
         }
     } catch (IOException e) {
         log.info(e.getMessage());
@@ -109,7 +109,7 @@ public class FileReadingUtil {
             int i = 0;
             while ((line = reader.readLine()) != null) {
                 i++;
-                System.out.printf("Line %s : %s", i, line);
+                System.out.printf("Line %s : %s \n", i, line);
             }
         } catch (IOException e) {
             e.printStackTrace();
@@ -170,11 +170,9 @@ public class NetworkUtil {
     private static final Logger log = LoggerFactory.getLogger(NetworkUtil.class);
 
     public static void main(String[] args) {
-        // The host and port of the server we want to connect to
         String host = "localhost";
         int port = 8080;
 
-        // Try-with-resources ensures the socket is closed automatically
         try (
                 Socket socket = new Socket(host, port); // Creates a client socket and connects to the specified host and port
                 OutputStream output = socket.getOutputStream(); // Gets the output stream to send data to the server
@@ -185,7 +183,7 @@ public class NetworkUtil {
             writer.println("Hello Server!"); // Sending a request or message to the server
 
             String response = reader.readLine(); // Reading the server's response
-            System.out.println("Server Response: " + response);
+            System.out.printf("Server Response: %s", response);
         } catch (IOException e) {
             log.info(e.getMessage()); // Handles exceptions related to socket communication
         }
