@@ -1,0 +1,280 @@
+---
+title: 'Java Varargs: What is it and how it work?'
+date: '2024-11-30'
+lastmod: '2024-11-30'
+tags: ['Java']
+draft: false
+summary: Varargs were introduced in Java 5 and designed to solve the problem of handling an arbitrary number of parameters in a method. But what exactly is this problem? What are varargs and how can we use them effectively?
+images: ['/static/img/cover/posts/varargs.png']
+layout: PostLayout
+---
+
+<TOCInline toc={props.toc} asDisclosure toHeading={3} />
+
+# 1. Introducing the Problem
+
+First, let’s answer the question: _What is an arbitrary number of parameters?_
+
+It means "a flexible number of parameters." Since parameters are part of methods, the problem here is how to pass a varying number of values to a method's parameters.
+
+Let’s look at an example below to make it clearer!
+
+Suppose we have a `sum()` function used to calculate the total of the parameters passed to it. For example, we have two parameters, `a` and `b`, passed to the function like this:
+
+```Java
+public int sum(int a, int b) {
+    return a + b;
+}
+```
+
+What if we want to calculate the sum of 3 numbers, 4 numbers, or even _n_ numbers? Before Java 5, we had two possible solutions:
+
+**Solution 1:** Create an overloaded method for each possible number of parameters. For every set of parameters, you need to write a corresponding method.
+
+```Java
+public int sum(int a, int b) {
+    return a + b;
+}
+
+public int sum(int a, int b, int c) {
+    return a + b + c;
+}
+
+public int sum(int a, int b, int c, int d) {
+    return a + b + c + d;
+}
+```
+
+While we could use a method like `sum(int a, int b, int c, int d)` to calculate the sum of 2 or 3 numbers, it makes the code unclear and inefficient because of the unused parameters.
+
+Additionally, it’s hard to predict how many numbers we might need to sum, meaning we might have to keep adding new methods as needed.
+
+**Solution 2:** Pass the numbers as a list of values.
+
+```Java
+public int sum(int[] args) {
+    int result = 0;
+    for (int i=0; i<args.length; i++)
+        result += args[i];
+    return result;
+}
+```
+
+This is probably the solution we often use for this type of problem. Naturally, it is much more flexible compared to the first solution.
+
+=> Both solutions have their drawbacks, which is why varargs were introduced in Java 5 to address these issues. Let’s move on to the next section to see how varargs work!
+
+# 2. How to use Varargs?
+
+Varargs is just a parameter passed into a method with the syntax:
+
+`<Data Types>... <Parameter's Name>`
+
+For example, you can use varargs with the sum() function like this:
+
+```Java
+public int sum(int... args) {
+    int result = 0;
+    for (int i=0; i<args.length; i++)
+        result += args[i];
+    return result;
+}
+```
+
+At this point, you can pass parameters into the sum() function more flexibly.
+
+```Java
+sum();             // 0
+sum(1, 2);         // 3
+sum(1, 2, 3);      // 6
+```
+
+=> Varargs solves the two problems mentioned in part 1. We no longer need to overload multiple methods or create a list beforehand.
+
+# 3. How does varargs work?
+
+The essence of varargs is arrays, or more precisely, when working with varargs, we are actually working with arrays.
+
+You might wonder, if it's similar to arrays, what’s the difference between the method `sum(int[] args)` and `sum(int... args)`?
+
+The answer lies in the initialization mechanism! So, how do they differ?
+
+**Case: `sum(int[] args)`**
+
+When using an array as a parameter, you must pass an array from outside when calling the `sum()` method. This means an array must be declared and initialized before the `sum()` method is used.
+
+```Java
+int[] params = {1, 2, 3, 4, 5};
+sum(params); // 15
+```
+
+**Case: `sum(int... args)`**
+
+When using varargs, instead of initializing an array beforehand, the compiler will create the array automatically when the `sum()` method is called. So, how does the compiler initialize it?
+
+- First, based on the number of values passed to the parameter, the compiler will create an array with a size equal to the number of values provided.
+
+- After the array is created, the compiler will assign the values we passed into that array.
+
+In simple terms, you only need to provide the values for the parameter, and the compiler will handle the declaration and initialization for you!
+
+```Java
+sum(1, 2, 3, 4, 5); // 15
+```
+
+**Note**: It may sound convenient, but clearly, if we use varargs improperly, it could lead to performance issues. I’ll dive deeper into this in section 5.
+
+# 4. What should we consider when using varargs?
+
+### 4.1 - Varargs must always be the last parameter.
+
+A method that contains a varargs parameter must have that parameter as the last one. If you don't place the varargs parameter at the end, the program will throw an error.
+
+```java
+public int sum(int initValue, int extendValue, int... args) {
+    int result = initValue;
+    for (int i = 0; i < args.length; i++)
+        result += args[i];
+    return result + extendValue;
+}
+```
+
+```java
+sum(10, 5, 1, 2, 3); // 21
+```
+
+The `args` parameter is placed at the end, so when calling the `sum()` method, the values 10 and 5 are assigned to the parameters `initValue` and `extendValue`, respectively. The remaining values are passed to the `args` parameter.
+
+### 4.2 - A method can only have one varargs parameter.
+
+If you want a method to have more than one varargs parameter, this is not possible. This actually stems from the first rule—varargs must be the last parameter.
+
+If you have two varargs parameters, the compiler won't know which one is the last. For example, the `sum()` method below will immediately throw an error:
+
+```java
+public int sum(String option, int... oddNumbers, int... evenNumbers) {   // error
+    int result = 0;
+
+    switch (option){
+        case "ODD":
+            for (int i = 0; i < oddNumbers.length; i++)
+                result += oddNumbers[i];
+            break;
+        case "EVEN":
+            for (int i = 0; i < evenNumbers.length; i++)
+                result += evenNumbers[i];
+            break;
+        default:
+            throw new RuntimeException("Option is not present");
+    }
+
+    return result;
+}
+```
+
+### 4.3 - Avoid Ambiguity in Overloading.
+
+What is Ambiguity Overloading?
+
+First, you probably already know what overloading is. Overloading occurs when we use methods with the same name in a class, but we need to ensure one of these three conditions:
+
+- Different number of parameters, with parameters of the same data type.
+- Same number of parameters, but the parameters have different data types.
+- Different order of data types in the parameters.
+
+So, what is ambiguity overloading? Let’s look at the following example:
+
+```java
+public int sum(int... args) {
+    int result = 0;
+    for (int i = 0; i < args.length; i++)
+        result += args[i];
+    return result;
+}
+
+public int sum(int initValue, int... args) {
+    int result = initValue;
+    for (int i = 0; i < args.length; i++)
+        result += args[i];
+    return result;
+}
+```
+
+Clearly, these two methods satisfy the overloading conditions, but if I pass parameters when calling the method as shown below, it will throw an error.
+
+=> The reason is that the value we pass makes it impossible for the compiler to distinguish whether it's the value for the `initValue` parameter in the method `sum(int initValue, int... args)` or the first value of the args parameter in the method `sum(int... args)`.
+
+# 5. How to use Varargs correctly?
+
+### 5.1 - Case where one or more values are required for the parameter
+
+A varargs parameter can accept 0 or more values. However, there are cases where we want to ensure that at least one value is passed.
+
+For example, consider the method for finding the minimum value below:
+
+```java
+public int min(int... args) {
+    if (args.length == 0)
+        throw new IllegalArgumentException("Too few arguments");
+    int min = args[0];
+    for (int i = 1; i < args.length; i++)
+        if (args[i] < min)
+            min = args[i];
+    return min;
+}
+```
+
+What’s the issue with this method?
+
+- First, when calling this method from the client, they can completely omit passing any values. Although this is checked and an exception is thrown, the problem is that this will only be known at runtime.
+
+- Second, adding such a check makes the method less clean because the logic of the method should focus solely on finding the minimum value.
+
+How can we fix this?
+
+It’s simple! We can add an additional parameter along with the varargs parameter to ensure that the client knows they need to pass at least one value to the method. This will also eliminate the need for runtime checks and exceptions when no values are provided.
+
+```java
+public int min(int firstArg, int... remainingArgs) {
+    int min = firstArg;
+    for (int arg : remainingArgs)
+        if (arg < min)
+            min = arg;
+    return min;
+}
+```
+
+### 5.2 - Avoid overusing Varargs
+
+Varargs gives us flexibility in passing values to parameters, but as I discussed in section 3, the essence of varargs is actually an array. And when arrays are involved, it brings concerns about memory allocation and performance.
+
+Let’s assume that in your program, the `sum()` method is used around 70% of the time for summing two numbers, 20% for summing three numbers, and 10% for summing _n_ numbers.
+
+Should you use just one `sum(int... args)` method for all three cases? The answer is **no**, because this would affect performance. Instead of using only the `sum(int... args)` method, you could define all three methods like this:
+
+```java
+public int sum(int a, int b)  {             // tính tổng hai số
+    return a + b;
+}
+
+public int sum(int a, int b, int c) {       // tính tổng 3 số
+    return a + b + c;
+}
+
+public int sum(int... args) {               // tính tổng n số
+    int result = 0;
+    for (int i = 0; i < args.length; i++)
+        result += args[i];
+    return result;
+}
+```
+
+# 6. Conclusion
+
+Varargs is not a new concept, as it was introduced in Java 5. However, it is still less commonly known and used by many developers. Perhaps in practice, there aren't many situations where we need to use varargs.
+
+That said, through this article, you should now have a better understanding of when varargs is useful and how to use it correctly.
+
+Methods like varargs aren't introduced without reason—they aim to solve a specific problem, and varargs does just that. I hope this article will help you understand varargs more clearly and apply it more effectively in your coding practices.
+
+See you in the next posts. Happy Coding!

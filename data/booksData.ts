@@ -1,7 +1,7 @@
 const booksData = [
   {
     title: 'Ai Đã Lấy Miếng Phomat Của Tôi?',
-    tags: ['Self Help'],
+    tags: ['Self-help'],
     enTitle: 'Who Moved My Cheese?',
     description: `Giữa một xã hội thay đổi liên tục, chúng ta chọn ổn định, an phận hay luôn nỗ lực để thích nghi và tiến bộ? Nếu các bạn vẫn đang phân vân về câu trả lời thì hãy tìm đọc cuốn sách nhỏ (hơn 100 trang) này. Mình tin các bạn sẽ tìm được cho bản thân câu trả lời thoả đáng.`,
     imgSrc: '/static/img/books/whomovedmycheese.png',
@@ -14,6 +14,14 @@ const booksData = [
     description: `Trước khi đọc cuốn sách mình không nghĩ người xưa có thể có những hiểu biết về tích luỹ và đầu tư tài chính hiệu quả như vậy. Thời hiện đại, mặc dù có nhiều phương cách tích luỹ và đầu tư hơn nhưng có lẽ những nguyên tắc cuốn sách đưa ra vẫn có giá trị áp dụng rất cao.`,
     imgSrc: '/static/img/books/therichestmaninbabylon.png',
     href: '/book-review/the-richest-man-in-babylon',
+  },
+  {
+    title: 'Không Bao Giờ Là Thất Bại, Tất Cả Chỉ Là Thử Thách',
+    tags: ['Self-help', 'Autobiography'],
+    enTitle: `Born of This Land: My Life Story`,
+    description: `Thời điểm mình đọc được cuốn sách này là vào giữa kỳ 1 năm nhất đại học, lúc đó mình đang chán học và có ý định nghỉ để ôn thi lại vào ngôi trường mình yêu thích. Như một cơ duyên, cuốn sách nhắc nhở mình mỗi thất bại không phải là dấu chấm hết, mà là một cơ hội để học hỏi, đứng dậy và tiếp tục tiến bước.`,
+    imgSrc: '/static/img/books/khongbaogiolathatbai.png',
+    href: '/book-review/atomic-habits',
   },
   {
     title: 'Thói Quen Nguyên Tử',
