@@ -1,0 +1,143 @@
+---
+title: 'Jenkins CI Pipeline với Docker, GitHub, Docker Hub, Spring Boot và triển khai trên AWS EC2 - PHẦN I'
+date: '2024-12-28'
+lastmod: '2024-12-28'
+tags: ['CI', 'Docker', 'Jenkins']
+draft: false
+summary: Continuous Integration (CI) là một phần quan trọng trong quy trình DevOps, giúp tự động hoá quy trình build, test và triển khai ứng dụng. Trong bài viết này, chúng ta sẽ tìm hiểu cách xây dựng một CI pipeline sử dụng Jenkins, Docker, GitHub, Docker Hub, Spring Boot.
+images: ['/static/img/cover/posts/jenkinsci.png']
+layout: PostLayout
+---
+
+<TOCInline toc={props.toc} asDisclosure toHeading={3} />
+
+# 1. Chúng Ta Sẽ Làm Gì?
+
+Bài viết này mình sẽ chia làm 2 phần:
+
+- **Phần 1**: Mình sẽ cùng các bạn xây dựng một Jenkins pipeline cơ bản để build và run một ứng dụng Spring Boot (có kết nối đến cơ sở dữ liệu) thông qua Docker ở môi trường local.
+- **Phần 2**: Mình sẽ triển khai pipeline này trên server (AWS EC2) và cải tiến một số điểm của pipeline cho phép gửi thông báo cũng như tự động hoá việc build code khi source code có update.
+
+Các stages trong pipeline (phần 1)
+
+![Alt text](/static/img/posts/jenkins/image1.png 'image')
+
+    - **#1**: Checkout source code từ GitHub.
+    - **#2**: Build code và chạy test.
+    - **#3**: Code analysis sử dụng Sonarqube.
+    - **#4**: Build code thành Docker image và đẩy lên DockerHub.
+    - **#5**:  Chạy ứng dụng thông qua Docker container từ image bên trên.
+
+# 2. Cần Chuẩn Bị Những Gì?
+
+Source Code:
+
+- Để follow các steps trong bài viết này các bạn download source code [tại đây](https://github.com/canhnd15/jenkins-ci-tutorial.git), sau đó push lên GitHub của các bạn.
+
+Accounts:
+
+- [GitHub](https://github.com/)
+- [DockerHub](https://hub.docker.com/)
+
+Tools and Tech stacks:
+
+- IDE: IntelliJ IDEA
+- Java Version: 17
+- Spring Boot Version: 3.3.2
+- Docker: Build image and run application as container
+- Jenkins: Build and run pipeline
+- Sonarqube: For analysising code
+- Database: Postgres
+
+# 3. Cài Đặt
+
+### 3.1 - Khởi chạy Jenkins, PostgreSQL, Sonarqube.
+
+Như mình đã đề cập, trong bài viết này chúng ta sẽ chạy toàn bộ các ứng dụng, setup trong môi trường Docker container. Vì vậy, các bạn hãy cài đặt Docker trước, nếu bạn nào chưa cài có thể tham khảo cài [Docker Desktop](https://docs.docker.com/desktop/) cho Window và Mac hoặc cho [Linux](https://docs.docker.com/desktop/setup/install/linux/).
+
+Sau khi clone source code các bạn di chuyển tới thư mục `ci` như hình bên dưới và chạy lệnh `docker compose up -d`:
+
+```shell
+cd ci
+docker-compose up -d
+```
+
+Nếu thành công các bạn sẽ thấy các containers đang được khởi chạy như bên dưới.
+
+![Alt text](/static/img/posts/jenkins/image2.png 'image')
+
+### 3.2 - Cài đặt Jenkins plugins
+
+Mặc định Jenkins chạy trên port `8080` nhưng chúng ta đang map port `8080` của container với port `8010` ở máy local nên bây giờ Jenkins đang chạy trên port `8010` ở máy local (các bạn có thể xem file `docker-compose.yaml` để rõ hơn).
+
+Các bạn truy cập vào địa chỉ [http://localhost:8010/](http://localhost:8010/) để đăng nhập vào Jenkins. Jenkins sẽ yêu cầu nhập mật khẩu được khởi tạo, các bạn chạy lệnh bên dưới để lấy sau đó follow theo hướng dẫn và đổi mật khẩu là xong.
+
+```shell
+docker ps
+docker exec -it jenkins bin/bash
+cat /var/jenkins_home/secrets/initialAdminPassword
+```
+
+Để làm việc với Jenkins được trực quan hơn chúng ta sẽ cài một số plugins: `Pipeline: Stage View`, `Docker Pipeline`, `SonarQube Scanner`
+
+Dashboard -> Manage Jenkins -> Plugins và search theo tên các plugins bên trên (lưu ý cài xong thì các bạn restart lại Jenkins để các plugin được acitve nhé).
+
+![Alt text](/static/img/posts/jenkins/image3.png 'image')
+
+### 3.3 - Cấu hình Jenkins Credentials
+
+> Jenkins Credentials là một cách để Jenkins quản lý và sử dụng các thông tin nhạy cảm (như mật khẩu, khóa SSH, token API, thông tin đăng nhập container registry, v.v.) một cách an toàn và thuận tiện trong các pipeline hoặc job. Việc sử dụng Jenkins Credentials giúp chúng ta không phải lưu thông tin nhạy cảm trong mã nguồn hoặc script, giảm nguy cơ bị rò rỉ.
+
+Trong bài viết này, để đơn giản mình sẽ cấu hình 3 global credentials sử dụng cho GitHub, DockerHub và SonarQube như bên dưới.
+
+![Alt text](/static/img/posts/jenkins/image4.png 'image')
+
+**GitHub Credential**: Các bạn đăng nhập vào GitHub để generate access token tại địa chỉ [https://github.com/settings/tokens](https://github.com/settings/tokens)
+
+- Developer Settings -> Tokens (classic) -> Generate new token (classic):
+
+![Alt text](/static/img/posts/jenkins/image5.png 'image')
+
+- Chọn các options -> Generate token.
+
+![Alt text](/static/img/posts/jenkins/image6.png 'image')
+
+- Config Github credential (Kind: Secret text, Scope: Global, Secret: Generated token, ID: github)
+
+![Alt text](/static/img/posts/jenkins/image7.png 'image')
+
+**SonarQube Credential**: Tương tự, chúng ta login vào SonarQube với account mặc định `admin/admin` tại địa chỉ: [http://localhost:9000/account/security](http://localhost:9000/account/security)
+
+![Alt text](/static/img/posts/jenkins/image8.png 'image')
+
+![Alt text](/static/img/posts/jenkins/image9.png 'image')
+
+**DockerHub Credential**:
+
+- Config Github credential (Kind: Username with password, Scope: Global, Username/Password: Your dockerhub account, ID: dockerhub)
+
+![Alt text](/static/img/posts/jenkins/image10.png 'image')
+
+### 3.4 - Config Jenkins Pipeline
+
+Dashboard -> All -> New Item -> Pipeline -> OK
+
+![Alt text](/static/img/posts/jenkins/image11.png 'image')
+
+![Alt text](/static/img/posts/jenkins/image12.png 'image')
+
+![Alt text](/static/img/posts/jenkins/image13.png 'image')
+
+Để chạy pipeline -> Build Now.
+
+![Alt text](/static/img/posts/jenkins/image14.png 'image')
+
+Nếu tất cả các stages đều xanh hết là pipeline build thành công. Các bạn kiểm tra các container đang chạy sẽ thấy ứng dụng `blog-app` đang được chạy trên port `8090`.
+
+![Alt text](/static/img/posts/jenkins/image15.png 'image')
+
+# 4. Tổng Kết
+
+Vậy là ở phần 1 này mình đã cùng các bạn setup một Jenkins pipeline đơn giản để build, run và deploy một ứng dụng Spring Boot trên môi trường Docker container (ở local). Thực tế, chúng ta sẽ triển khai trên các server và mình sẽ cùng các bạn tìm hiểu trong phần 2 của bài viết.
+
+See you in the next posts. Happy Coding!

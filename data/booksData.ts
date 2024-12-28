@@ -21,7 +21,7 @@ const booksData = [
     enTitle: `Born of This Land: My Life Story`,
     description: `Thời điểm mình đọc được cuốn sách này là vào giữa kỳ 1 năm nhất đại học, lúc đó mình đang chán học và có ý định nghỉ để ôn thi lại vào ngôi trường mình yêu thích. Như một cơ duyên, cuốn sách nhắc nhở mình mỗi thất bại không phải là dấu chấm hết, mà là một cơ hội để học hỏi, đứng dậy và tiếp tục tiến bước.`,
     imgSrc: '/static/img/books/khongbaogiolathatbai.png',
-    href: '/book-review/atomic-habits',
+    href: '/book-review/born-of-this-land-my-life-story',
   },
   {
     title: 'Thói Quen Nguyên Tử',
