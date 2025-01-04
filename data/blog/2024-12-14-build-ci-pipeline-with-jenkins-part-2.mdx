@@ -1,0 +1,211 @@
+---
+title: 'Jenkins CI Pipeline với Docker, GitHub, Docker Hub, Spring Boot và triển khai trên AWS EC2 - PHẦN II'
+date: '2024-12-30'
+lastmod: '2024-12-30'
+tags: ['CI', 'Docker', 'Jenkins', 'EC2', 'AWS']
+draft: false
+summary: Ở bài viết trước, chúng ta đã triển khai thành công Jenkins pipeline trên môi trường local. Tất nhiên, ở các môi trường khác nhau sẽ có những cấu hình khác nhau, vì vậy bài viết này mình sẽ cùng các bạn tìm hiểu cách chạy pipeline trên một server cũng như cách cấu hình ra sao.
+images: ['/static/img/cover/posts/jenkinsci.png']
+layout: PostLayout
+---
+
+<TOCInline toc={props.toc} asDisclosure toHeading={3} />
+
+# 1. Chúng Ta Sẽ Làm Gì?
+
+Chào các bạn, trong bài viết này chúng ta sẽ hoàn thiện nội dụng của bài viết trước về việc triển khai một CI pipeline sử dụng Jenkins trên server, cụ thể là một AWS EC2 Instance. Vậy chúng ta sẽ làm những gì?
+
+- **#1**: Đầu tiên, mình sẽ cùng các bạn setup một server AWS EC2 với những cấu hình cơ bản.
+- **#2**: Tiếp theo đó sẽ config Jenkins pipeline tương tự như đã làm ở phần trước.
+- **#3**: Cuối cùng là bổ sung thêm một số tính năng để pipeline hoàn thiện hơn (gửi notification và auto deploy).
+
+Okay, let's get started.
+
+# 2. Setup Server AWS EC2
+
+**Lưu ý**: Ở đây mình sử dụng service của AWS cho tiện, nếu bạn nào chưa có tài khoản AWS có thể tạo [tại đây](https://aws.amazon.com/free). Bạn nào có server khác thì có thể follow các steps của mình để tham khảo và cài cắm sao cho phù hợp.
+
+### 1.1 - Khởi tạo EC2 Instance
+
+Lưu ý:
+
+- Trong bài viết này mình KHÔNG sử dụng `t2.micro` thuộc Free tier eligible bởi vì cấu hình của instance này không đáp ứng ứng được việc chạy SonarQube và khi chạy nhiều Docker container sẽ bị chậm.
+
+- Thay vào đó mình sử dụng `t2.medium` On-Demand Linux thì phải trả phí ~0.05$/hour với region Singapore (ap-southeast-1). Các bạn có thể cân nhắc sử dụng instance này vì chi phí cũng không quá đắt.
+
+Trước khi tạo EC2 instance thì chúng ta tạo một security group với các cấu hình như sau:
+
+![Alt text](/static/img/posts/jenkins2/image1.png 'image')
+
+Config inbound rules:
+
+- `5433`: Mapping với port `5432` chạy database của ứng dụng
+- `22`: Cho phép SSH vào server
+- `9010`: Mapping với port `9000` chạy SonarQube
+- `8010`: Mapping với port `8080` chạy Jenkins
+- `8090`: Mapping với port `8088` chạy ứng dụng.
+
+Chọn các options để khởi chạy EC2 Instance:
+
+![Alt text](/static/img/posts/jenkins2/image2.png 'image')
+
+- Chọn instance type là `t2.medium` để đáp ứng cấu hình cần thiết (nếu bạn nào không muốn tốn chi phí có thể follow mình từ step này).
+
+![Alt text](/static/img/posts/jenkins2/image3.png 'image')
+
+- Tạo key pair để SSH vào server.
+
+![Alt text](/static/img/posts/jenkins2/image4.png 'image')
+
+- Chọn security group đã cấu hình bên trên.
+
+![Alt text](/static/img/posts/jenkins2/image5.png 'image')
+
+- Các options các bạn để mặc định và bấm Launch instance để khởi tạo EC2 instance.
+
+Như vậy là chúng ta đã có một EC2 instance với các cấu hình cần thiết, tiếp theo mình sẽ SSH vào server và cài đặt các công cụ cần thiết.
+
+### 1.2 - Cài đặt Git, Docker, Docker Compose
+
+Để SSH vào server các bạn di chuyển tới thư mục chứ file key pair vừa download về, sử dụng bất kỳ một SSH client tool nào để kết nối:
+
+```shell
+chmod 400 "jenkins-server-key.pem"
+ssh -i jenkins-server-key.pem ec2-user@<your's server public IP>
+```
+
+Cài đặt Docker:
+
+```shell
+sudo yum update -y
+
+sudo yum install docker -y
+
+sudo systemctl start docker
+
+sudo systemctl status docker
+```
+
+Cài đặt Docker compose:
+
+```shell
+sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+
+sudo chmod +x /usr/local/bin/docker-compose
+```
+
+Cài đặt GIT:
+
+```shell
+sudo yum install git -y
+```
+
+### 1.3 - Chạy file docker-compose.yaml
+
+- Clone source code (phần 2 chúng ta sẽ làm việc trên nhánh `deploy-on-aws`, các bạn lưu ý checkout sang nhánh này).
+
+```shell
+cd /opt
+sudo mkdir code
+cd code
+sudo git clone https://github.com/canhnd15/jenkins-ci-tutorial.git
+sudo git checkout deploy-on-aws
+```
+
+- Chạy docker-compose file:
+
+```shell
+sudo docker-compose up -d
+```
+
+![Alt text](/static/img/posts/jenkins2/image6.png 'image')
+
+=> Như vậy là Jenkins, SonarQube, PostgreSQL containers đều đã khởi chạy thành công. Tiếp theo, chúng ta sẽ cấu hình Jenkins pipeline như trong [phần 1](https://davidnguyenblog.vercel.app/blog/build-ci-pipeline-with-jenkins)
+
+# 3. Config Jenkins Pipeline
+
+Về cơ bản, việc cài đặt và cấu hình Jenkins pipeline sẽ tương tự như trong [Phần 1](https://davidnguyenblog.vercel.app/blog/build-ci-pipeline-with-jenkins). Ở bài viết này, mình có thêm phần gửi notification qua Telegram khi pipeline chạy thành công hoặc thất bại.
+
+Để cấu hình được việc gửi notification qua Telegram các bạn chuẩn bị cho mình 1 tài khoản [Telegram](https://web.telegram.org/a/) và tạo một Telegram bot theo hướng dẫn [tại đây](https://core.telegram.org/bots/tutorial)
+
+Sau khi tạo được Telegram Bot chúng ta sẽ cấu hình `BOT_TOKEN` và `CHAT_ID` trên Jenkins. Vậy làm sao để lấy được `BOT_TOKEN` và `CHAT_ID`?
+
+- `BOT_TOKEN`: Được tạo ra sau khi các bot được tạo thành công, ví dụ:
+
+![Alt text](/static/img/posts/jenkins2/image7.png 'image')
+
+- `CHAT_ID`: Có thể lấy thông qua API (thay thế `BOT_TOKEN` bằng token bên trên). Các bạn có thể gửi một message bất kỳ tới group chat muốn gửi notification (sau khi tạo bot) và reload lại API bên dưới để lấy `CHAT_ID` tương ứng.
+
+```shell
+https://api.telegram.org/bot<BOT_TOKEN>/getUpdates
+```
+
+Để gửi được notifcation từ Jenkins tới group chat của Telegram chúng ta sẽ cấu hình `BOT_TOKEN` và `CHAT_ID` là các System credentials trên Jenkins. Làm sao để cấu hình credentials trên Jenkins thì các bạn có thể tham khảo [tại đây](https://davidnguyenblog.vercel.app/blog/build-ci-pipeline-with-jenkins#33---c%E1%BA%A5u-h%C3%ACnh-jenkins-credentials)
+
+Ở Jenkinsfile, chúng ta phải thêm các đoạn code sau:
+
+```shell
+// Đọc credentials từ configs.
+environment {
+    TELEGRAM_BOT_TOKEN = credentials('BOT_TOKEN')
+    TELEGRAM_CHAT_ID = credentials('CHAT_ID')
+}
+
+// Gửi notification tới Telegram thông qua Telegram API.
+post {
+      always {
+          script {
+              def botToken = env.TELEGRAM_BOT_TOKEN
+              def chatId = env.TELEGRAM_CHAT_ID
+
+              def status = currentBuild.currentResult
+              def message = "Build ${env.JOB_NAME} #${env.BUILD_NUMBER} completed with status: ${status}."
+
+              sh """
+                  curl -X POST \
+                  https://api.telegram.org/bot${botToken}/sendMessage \
+                  -d chat_id=${chatId} \
+                  -d text="${message}"
+              """
+          }
+      }
+  }
+```
+
+Việc push notification thành công diễn ra sau khi tất cả các stage được được chạy thành công (xanh hết). Trường hợp fail, thì message fail tương ứng sẽ được gửi đi, ví dụ:
+
+![Alt text](/static/img/posts/jenkins2/image8.png 'image')
+
+=> Các bạn có thể thêm một post message trước khi chạy các stage để báo với các team khác, hệ thống đang được build và deploy.
+
+Okay, bây giờ các bạn build thử pipeline, nếu tất cả các stages đều xanh là thành công.
+
+![Alt text](/static/img/posts/jenkins2/image9.png 'image')
+
+Pipeline build xong, kiểm tra các container đang chạy có thể thấy ứng dụng đã được build và chạy thành công:
+
+![Alt text](/static/img/posts/jenkins2/image10.png 'image')
+
+# 4. Testing
+
+Để kiểm tra ứng dụng đã chạy đúng chưa, các bạn có thể sử dụng Postman để test các APIs:
+
+- Create a post:
+
+![Alt text](/static/img/posts/jenkins2/image11.png 'image')
+
+- Create a message of the post:
+
+![Alt text](/static/img/posts/jenkins2/image12.png 'image')
+
+- Get created post with messages:
+
+![Alt text](/static/img/posts/jenkins2/image13.png 'image')
+
+# 5. Tổng Kết
+
+Vậy là kết thúc phần 2 này, mình đã cùng các bạn tạo một khởi tạo một server sử dụng EC2 instance của AWS, cài đặt và cấu hình Jenkins thông qua Docker và tạo pipeline và build thành công cũng như test ứng dụng.
+
+Để hiểu rõ hơn về các cấu hình các bạn có thể tham khảo [source code](https://github.com/canhnd15/jenkins-ci-tutorial.git) mình đã cung cấp trong bài viết trước (branch `deploy-on-aws`)
+
+See you in the next posts. Happy Coding!
