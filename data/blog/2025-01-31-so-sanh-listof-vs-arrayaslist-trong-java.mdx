@@ -1,0 +1,183 @@
+---
+title: 'Các bạn đã biết sự khác biệt giữa List.of() và Arrays.asList() trong Java chưa?'
+date: '2025-01-31'
+lastmod: '2024-01-31'
+tags: ['Java', 'Data Structure']
+draft: false
+summary: Ở bài viết trước, chúng ta đã triển khai thành công Jenkins pipeline trên môi trường local. Tất nhiên, ở các môi trường khác nhau sẽ có những cấu hình khác nhau, vì vậy bài viết này mình sẽ cùng các bạn tìm hiểu cách chạy pipeline trên một server cũng như cách cấu hình ra sao.
+images: ['/static/img/cover/posts/jenkinsci.png']
+layout: PostLayout
+---
+
+<TOCInline toc={props.toc} asDisclosure toHeading={3} />
+
+Khi làm việc với `List` trong Java, chúng ta thường gặp hai phương thức phổ biến để tạo một List từ tập hợp phần tử có sẵn đó là: `List.of()` và `Arrays.asList()`.
+
+Mặc dù cả hai đều giúp khởi tạo List một cách nhanh chóng, nhưng hai phương thức này có những điểm khác biệt như tính bất biến (immutable), kiểu dữ liệu hỗ trợ, và khả năng chỉnh sửa.
+
+Bài viết hôm nay mình sẽ cùng các bạn phân tích cơ chế hoạt động, tìm hiểu về các ưu nhược điểm và cách sử dụng của từng phương thức.
+
+# 1. Arrays.asList()
+
+### 1.1 - Cơ chế hoạt động
+
+`Arrays.asList()` là một phương thức thuộc class `java.util.Arrays` giúp chuyển đổi một mảng các phần tử thành một danh sách _cố định_ của các phần tử đó.
+
+```java
+String[] namesInArray = {"DEV_01", "DEV_02", "DEV_03"}
+List<String> names = Arrays.asList(namesInArray);
+```
+
+Chúng ta có thể thay đổi giá trị các phần tử trong list.
+
+```java
+names.set(1, "DEV_2");
+```
+
+Nhưng không thể thay đổi kích thước của list đã được khởi tạo (không thể thêm hoặc xóa phần tử).
+
+```java
+names.add("DEV_04"); //Throws java.lang.UnsupportedOperationException
+names.remove("DEV_01"); //Throws java.lang.UnsupportedOperationException
+```
+
+### 1.2 - Ưu và nhược của Arrays.asList()
+
+**_Ưu điểm_**
+
+- Tạo danh sách nhanh chóng từ mảng cho trước.
+
+- Có thể chứa phần tử `null`.
+
+- Có thể thay đổi giá trị tại một vị trí index cụ thể.
+
+**_Nhược điểm_**
+
+- Việc thêm `add()` hoặc xóa `remove()` phần tử sẽ bắn exception `UnsupportedOperationException`
+
+- Nếu mảng dữ liệu ban đầu thay đổi, list khởi tạo cũng thay đổi theo.
+
+```java
+String[] namesInArray = {"DEV_01", "DEV_02", "DEV_03"};
+List<String> names = Arrays.asList(namesInArray);
+namesInArray[1] = "DEV_02_UPDATED";
+
+System.out.println(names); // [DEV_01, DEV_02_UPDATED, DEV_03]
+```
+
+=> Như vậy là Jenkins, SonarQube, PostgreSQL containers đều đã khởi chạy thành công. Tiếp theo, chúng ta sẽ cấu hình Jenkins pipeline như trong [phần 1](https://davidnguyenblog.vercel.app/blog/build-ci-pipeline-with-jenkins)
+
+# 2. List.of()
+
+### 2.1 - Cơ chế hoạt động
+
+- `List.of()` là một static method của interfacr `List` được giới thiệu từ Java 9, giúp khởi tạo một immutable list từ tập hợp các phần tử cho trước.
+
+```java
+String[] namesInArray = {"DEV_01", "DEV_02", "DEV_03"};
+List<String> names = List.of(namesInArray);
+or
+List<String> names = List.of("DEV_01", "DEV_02", "DEV_03");
+```
+
+Như thế nào là immutable list?
+
+- Đó là danh sách được tạo bởi `List.of()` không thể thêm, sửa hoặc xóa phần tử sau khi đã khởi tạo.
+
+```java
+names.add("DEV_04"); //Throws java.lang.UnsupportedOperationException
+names.remove("DEV_01"); //Throws java.lang.UnsupportedOperationException
+names.set(1, "UPDATED_DEV_02"); //Throws java.lang.UnsupportedOperationException
+```
+
+### 2.2 - Ưu và nhược của List.of()
+
+**_Ưu điểm_**
+
+- Immutable: Giúp đảm bảo thread-safe và tránh các lỗi do thay đổi dữ liệu ngoài mong muốn.
+
+- Do không hỗ trợ chỉnh sửa, `List.of()` có thể tối ưu hóa bộ nhớ và hiệu suất tốt hơn so với việc sử dụng `Arrays.asList()`.
+
+- Không bị ảnh hưởng bởi mảng gốc vì `List.of()` không sử dụng backed array, nên không bị ảnh hưởng nếu mảng ban đầu thay đổi.
+
+**_Nhược điểm_**
+
+- Không thể thêm, xóa, hay thay đổi phần tử trong danh sách.
+
+- Do không cho phép phần tử `null` nên trong nhiều trường hợp mảng ban đầu chứa phần tử null sẽ gặp exception `NullPointerException`.
+
+```java
+String[] namesInArray = {"DEV_01", null, "DEV_03"};
+List<String> names = List.of(namesInArray);
+System.out.println(names); // Throws java.lang.NullPointerException
+```
+
+# 4. So sánh
+
+| Đặc điểm                  | List.of() | Arrays.asList()      |
+| ------------------------- | --------- | -------------------- |
+| Có thể chỉnh sửa          | ❌ Không  | ✅ Có (chỉ giá trị)  |
+| Thay đổi kích thước       | ❌ Không  | ❌ Không             |
+| Hỗ trợ phần tử null       | ❌ Không  | ✅ Có                |
+| Hiệu suất                 | ✅ Cao    | 🚀 Tốt nhưng kém hơn |
+| Bị ảnh hưởng bởi mảng gốc | ❌ Không  | ✅ Có                |
+| Phiên bản Java            | Java 9+   | Java 5+              |
+
+# 5. Ví dụ
+
+**_Sử dụng `List.of()` để cấu hình các hằng số ít thay đổi trong hệ thống_**
+
+```java
+import java.util.List;
+
+public class AppConfig {
+    public static final List<String> USER_ROLES = List.of("ADMIN", "USER", "GUEST");
+
+    public static void main(String[] args) {
+        System.out.println("User roles: " + USER_ROLES);
+
+        // USER_ROLES.add("SUPER_ADMIN"); //Throws java.lang.UnsupportedOperationException
+    }
+}
+```
+
+**_Sử dụng `Arrays.asList()` để xử lý dữ liệu từ file CSV_**
+
+```Java
+import java.util.Arrays;
+import java.util.List;
+
+public class CSVProcessor {
+    public static void main(String[] args) {
+        String csvDevelopers = "Dev01, Dev02, Dev03, Dev04";
+
+        List<String> devs = Arrays.asList(csvDevelopers.split(", "));
+
+        System.out.println("Developers List: " + devs);
+
+        students.set(1, "DevZero");
+
+        System.out.println("Updated List " + devs);
+
+        // devs.add("Dev05"); //Throws java.lang.UnsupportedOperationException
+    }
+}
+```
+
+- Tổng hợp một số trường hợp sử dụng `List.of()` hay `Arrays.asList()`
+
+| **Tình huống**                         | **Dùng List.of()** | **Dùng Arrays.asList()** |
+| -------------------------------------- | ------------------ | ------------------------ |
+| Danh sách hằng số không thay đổi       | ✅                 | ❌                       |
+| Chỉnh sửa giá trị nhưng không thêm/xóa | ❌                 | ✅                       |
+| Dữ liệu cần có `null`                  | ❌                 | ✅                       |
+| Chuyển đổi nhanh mảng thành danh sách  | ❌                 | ✅                       |
+| Tối ưu hiệu suất & thread-safe         | ✅                 | ❌                       |
+
+# 6. Tổng Kết
+
+`List.of()` và `Arrays.asList()` đều hữu ích trong các tình huống khác nhau. `List.of()` cho phép tạo một immutable list, hỗ trợ thread-safe và có hiệu suất cao hơn, phù hợp khi không muốn list bị thay đổi. Trong khi đó, `Arrays.asList()` phù hợp khi cần một list có thể sửa đổi giá trị nhưng không thể thay đổi kích thước.
+
+Hy vọng bài viết này giúp các bạn hiểu rõ hơn về hai phương thức này để áp dụng vào dự án một cách hiệu quả!
+
+Hẹn gặp lại các bạn trong các bài viết tiếp theo. Happy Coding!
