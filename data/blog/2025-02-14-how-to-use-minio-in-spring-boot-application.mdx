@@ -1,0 +1,485 @@
+---
+title: 'Tích Hợp Minio Trong Ứng Dụng Spring Boot'
+date: '2025-02-08'
+lastmod: '2024-02-08'
+tags: ['Spring Boot', 'Minio', 'AWS S3']
+draft: false
+summary: Trong bài viết này mình sẽ cùng các bạn tìm hiểu về Minio là một Object Storage cũng như cách sử dụng Minio trong ứng dụng Spring Boot để hỗ trợ các th
+images: ['/static/img/cover/posts/listofvsaslist.png']
+layout: PostLayout
+---
+
+<TOCInline toc={props.toc} asDisclosure toHeading={3} />
+
+# 1. Object Storage và MinIO là gì?
+
+![Alt text](/static/img/posts/minio/cover.png 'image')
+
+Khi làm việc với các hệ thống hiện đại ngày này thì việc lưu trữ các đối tượng dữ liệu phi cấu trúc như videos, images, logs... trở thành điều gần như bắt buộc.
+
+Điều này khó có thể thực hiện được bởi các hệ quản trị cơ sở dữ liệu, đặc biệt là các hệ quản trị cơ sở dữ liệu có cấu trúc. Chính vì vậy Object Storage được ra đời để giải quyết bài toán này và MinIO là một trong những Object Storage phổ biến nhất.
+
+### 1.1 - Object Storage là gì?
+
+> Object storage is a storage architecture for storing unstructured data. This architecture divides data into units (objects) and stores them in a flat data environment. Each object includes the data, metadata, and a unique identifier that applications can use to facilitate viewing and retrieval.
+
+Trích https://cloud.google.com/learn/what-is-object-storage
+
+Hiểu đơn giản, object storage lưu trữ dữ liệu phi cấu trúc (unstructured data), chia dữ liệu thành các đơn vị gọi là object và lưu trữ những unit đó trên môi trường dữ liệu phẳng. Mỗi object bao gồm:
+
+- Data: Nội dung lưu trữ
+- Metadata: Các thông tin liên quan đến object (created date, permissions, content type...)
+- Unique Identifier: Khoá duy nhất để duyệt qua các object.
+
+### 1.2 - Cần biết gì về MinIO?
+
+Khi nói về Object Storage có thể các bạn đã nghe tới nhiều Cloud Object Storage như AWS S3, Google Cloud Storage, Azure Blob Storage...
+
+![Alt text](/static/img/posts/minio/image1.png 'image')
+
+Vậy MinIO có điểm gì khác so với những cái tên kể trên? Để dễ hình dung mình sẽ so sánh MinIO và AWS S3 trên một sô khía cạnh như sau:
+
+<table border="1">
+  <thead>
+    <tr>
+      <th>Tiêu chí</th>
+      <th>MinIO</th>
+      <th>AWS S3</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Triển khai</td>
+      <td>Self-hosted (On-premises, Kubernetes, Cloud)</td>
+      <td>Managed service trên AWS</td>
+    </tr>
+    <tr>
+      <td>Hiệu suất</td>
+      <td>Cực nhanh (tối ưu cho Kubernetes & Edge Computing)</td>
+      <td>Ổn định, phụ thuộc vào AWS hạ tầng</td>
+    </tr>
+    <tr>
+      <td>Chi phí</td>
+      <td>Miễn phí (Self-host) hoặc có phí hỗ trợ</td>
+      <td>Pay-as-you-go (AWS tính phí theo dung lượng)</td>
+    </tr>
+    <tr>
+      <td>Khả năng mở rộng</td>
+      <td>Horizontal scaling (dễ mở rộng với nhiều node)</td>
+      <td>Auto-scaled bởi AWS</td>
+    </tr>
+    <tr>
+      <td>Bảo mật</td>
+      <td>Self-managed (IAM, TLS, encryption tùy chỉnh)</td>
+      <td>AWS IAM, KMS, PrivateLink, VPC Endpoint</td>
+    </tr>
+    <tr>
+      <td>Khả dụng</td>
+      <td>Phụ thuộc vào hạ tầng tự triển khai</td>
+      <td>99.99% SLA trên AWS</td>
+    </tr>
+  </tbody>
+</table>
+
+=> Như vậy chúng ta có thể kết luận nên sử dụng MinIO khi cần một private cloud storage, tự quản lý dữ liệu hoặc giảm chi phí.
+
+Để tìm hiểu thêm về MinIO, các bạn có thể tham khảo thêm tại đây:
+
+- https://min.io/
+- https://min.io/docs/minio/kubernetes/upstream/index.html
+
+# 2. Tích hợp MinIO trong ứng dụng Spring Boot
+
+### 2.1 - Cài đặt và cấu hình
+
+MinIO hỗ trợ cài đặt trên hầu hết các nền tảng cũng như hệ điều hành hiện nay (K8s, Docker, Linux, macOS, Windows). Để thuận tiện trong bài viết này mình sẽ cùng các bạn cài đặt MinIO thông qua Docker.
+
+Các bạn có thể clone source code của mình [tại đây](https://github.com/canhnd15/minio-spring-boot.git), branch `init_project`, cd đến root folder của source code và chạy command:
+
+```shell
+docker compose up -d
+```
+
+Ở đây, mình đã viết một file `docker-compose.yml` để setup chạy MinIO dưới dạng Docker container.
+
+```yml
+version: '3.8'
+
+services:
+  minio:
+    image: quay.io/minio/minio
+    container_name: minio
+    restart: unless-stopped
+    env_file:
+      - dev.env
+    volumes:
+      - minio-data:/data
+    ports:
+      - '9000:9000'
+      - '9001:9001'
+    command: server /data --console-address ":9001"
+
+volumes:
+  minio-data:
+    driver: local
+```
+
+Nếu bạn nào chưa rành về Docker compose có thể chạy lệnh run Docker container trực tiếp như sau:
+
+```shell
+mkdir -p ~/minio/data
+
+docker run \
+   -p 9000:9000 \
+   -p 9001:9001 \
+   --name minio \
+   -v ~/minio/data:/data \
+   -e "MINIO_ROOT_USER=admin" \
+   -e "MINIO_ROOT_PASSWORD=Admin@123" \
+   quay.io/minio/minio server /data --console-address ":9001"
+```
+
+Để kiểm tra trạng thái của container sau khi khởi chạy các bạn có thể dùng lệnh:
+
+```logs
+~/Desktop/code/spring/minio init_project +1 ❯ docker ps
+CONTAINER ID   IMAGE                 COMMAND                  CREATED          STATUS          PORTS                              NAMES
+a14adce9ba2b   quay.io/minio/minio   "/usr/bin/docker-ent…"   24 minutes ago   Up 24 minutes   0.0.0.0:9000-9001->9000-9001/tcp   minio
+```
+
+```logs
+~/Desktop/code/spring/minio init_project +1 ❯ docker logs -t minio
+2025-02-23T02:19:35.793744676Z MinIO Object Storage Server
+2025-02-23T02:19:35.793805218Z Copyright: 2015-2025 MinIO, Inc.
+2025-02-23T02:19:35.793809009Z License: GNU AGPLv3 - https://www.gnu.org/licenses/agpl-3.0.html
+2025-02-23T02:19:35.793810968Z Version: RELEASE.2025-02-18T16-25-55Z (go1.23.6 linux/arm64)
+2025-02-23T02:19:35.793813093Z
+2025-02-23T02:19:35.793815134Z API: http://172.24.0.2:9000  http://127.0.0.1:9000
+2025-02-23T02:19:35.793817218Z WebUI: http://172.24.0.2:9001 http://127.0.0.1:9001
+2025-02-23T02:19:35.793819051Z
+2025-02-23T02:19:35.793820676Z Docs: https://docs.min.io
+```
+
+Như vậy là chúng ta đã setup MinIO thành công, để truy cập vào UI của MinIO các bạn follow theo đường dẫn: http://localhost:9001
+
+![Alt text](/static/img/posts/minio/image2.png 'image')
+
+### 2.2 - Tích hợp MinIO trong ứng dụng Spring Boot
+
+- Để sử dụng được MinIO trong ứng dụng Spring Boot chúng ta phải thêm dependency vào file `pom.xml` như sau:
+
+```xml
+<properties>
+	<minio.version>8.5.7</minio.version>
+</properties>
+
+<dependency>
+	<groupId>io.minio</groupId>
+	<artifactId>minio</artifactId>
+	<version>${minio.version}</version>
+</dependency>
+```
+
+- Thêm cấu hình trong file `application.yml`
+
+```yml
+spring:
+  application:
+    name: Spring Boot and MinIO Integration
+  profiles:
+    active: minio
+  servlet:
+    multipart:
+      max-file-size: 5GB # Giới hạn dung lượng tối đa của một tệp tải lên (5GB)
+      max-request-size: 50GB # Giới hạn tổng dung lượng của tất cả các tệp trong một request (5GB)
+
+minio:
+  url: http://localhost:9000 # URL của MinIO server
+  key:
+    access: admin # Access key để kết nối MinIO
+    secret: Admin@123 # Secret key để xác thực với MinIO
+  bucket:
+    default: demo # Tên bucket mặc định để lưu trữ file
+
+server:
+  port: 9005
+```
+
+- Cấu hình MinIO Client API cho phép chúng ta thực hiện các thao tác với object. Các bạn có thể đọc kỹ hơn về MinIO Client API cho Java [tại đây](https://min.io/docs/minio/linux/developers/java/API.html)
+
+```java
+package com.davidnguyen.demo.minio.config;
+
+import io.minio.MinioClient;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+public class MinIoConfig {
+    @Value("${minio.url}")
+    private String minioUrl;
+
+    @Value("${minio.key.access}")
+    private String accessKey;
+
+    @Value("${minio.key.secret}")
+    private String secretKey;
+
+    @Bean
+    public MinioClient minioClient() {
+        return MinioClient.builder()
+                .endpoint(minioUrl)
+                .credentials(accessKey, secretKey)
+                .build();
+    }
+}
+```
+
+- Bây giờ mình sẽ viết các services để implement một số phương thức như upload, download và get pre-signed file's url.
+
+```java
+package com.davidnguyen.demo.minio.service;
+
+import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.InputStream;
+import java.util.List;
+
+@Service
+public interface StorageService {
+    void upload(List<MultipartFile> files);
+
+    InputStream download(String fileName);
+
+    String getURL(String fileName);
+}
+```
+
+```java
+package com.davidnguyen.demo.minio.service;
+
+import io.minio.*;
+import io.minio.http.Method;
+import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Profile;
+import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.InputStream;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
+
+@Service
+@RequiredArgsConstructor
+@Profile("minio")
+public class MinIOStorageService implements StorageService {
+    private final MinioClient minioClient;
+
+    @Value("${minio.bucket.default}")
+    private String bucketName;
+
+    @Override
+    public void upload(List<MultipartFile> files) {
+        this.ensureBucketExists(bucketName);
+
+        for (MultipartFile file : files) {
+            try (InputStream inputStream = file.getInputStream()) {
+                minioClient.putObject(
+                        PutObjectArgs.builder()
+                                .bucket(bucketName)
+                                .object(file.getOriginalFilename())
+                                .stream(inputStream, file.getSize(), -1)
+                                .contentType(file.getContentType())
+                                .build()
+                );
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to upload file: " + file.getOriginalFilename(), e);
+            }
+        }
+    }
+
+    private void ensureBucketExists(String bucketName) {
+        try {
+            boolean found = minioClient.bucketExists(
+                    BucketExistsArgs.builder().bucket(bucketName).build()
+            );
+            if (!found) {
+                minioClient.makeBucket(
+                        MakeBucketArgs.builder().bucket(bucketName).build()
+                );
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to ensure bucket exists: " + bucketName, e);
+        }
+    }
+
+    @Override
+    public InputStream download(String fileName) {
+        try {
+            return minioClient.getObject(
+                    GetObjectArgs.builder()
+                            .bucket(bucketName)
+                            .object(fileName)
+                            .build()
+            );
+        } catch (Exception e) {
+            throw new RuntimeException("Error downloading file: " + e.getMessage());
+        }
+    }
+
+    @Override
+    public String getURL(String fileName) {
+        try {
+            return minioClient.getPresignedObjectUrl(
+                    GetPresignedObjectUrlArgs.builder()
+                            .bucket(bucketName)
+                            .object(fileName)
+                            .method(Method.GET)
+                            .expiry(30, TimeUnit.DAYS)
+                            .build()
+            );
+        } catch (Exception e) {
+            throw new RuntimeException("Error generating pre-signed URL: " + e.getMessage());
+        }
+    }
+}
+```
+
+- Viết controller để expose các APIs và thực hiện testing.
+
+```java
+package com.davidnguyen.demo.minio.controller;
+
+import com.davidnguyen.demo.minio.service.MinIOStorageService;
+import com.davidnguyen.demo.minio.service.StorageService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.InputStream;
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/v1/storage")
+@RequiredArgsConstructor
+public class StorageController {
+    /**
+     * Upload files to storage.
+     */
+    @PostMapping("/upload")
+    public ResponseEntity<Void> uploadFile(
+            @RequestPart("files") List<MultipartFile> files
+    ) {
+        storageService.upload(files);
+        return ResponseEntity.ok().build();
+    }
+
+    private final StorageService storageService;
+
+    /**
+     * Download file from storage.
+     */
+    @GetMapping("/download/{fileName}")
+    public ResponseEntity<byte[]> download(
+            @PathVariable String fileName
+    ) {
+        try {
+            InputStream stream = storageService.download(fileName);
+            byte[] content = stream.readAllBytes();
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"")
+                    .body(content);
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(null);
+        }
+    }
+
+    /**
+     * Get pre-signed URL for accessing a file.
+     */
+    @GetMapping("/pre-signed-url/{fileName}")
+    public ResponseEntity<String> getPreSignedUrl(@PathVariable String fileName) {
+        return ResponseEntity.ok(storageService.getURL(fileName));
+    }
+}
+```
+
+=> **Lưu Ý**:
+
+- Mặc định MinIO không hỗ trợ versioning cho các file được upload nên nếu chúng ta upload hai files khác nhau hoặc tương tự nhau nhựng cùng tên file thì mặc định MinIO sẽ override file được upload sau.
+- Để tránh điều này, chúng ta có thể generate unique file name cho từng file mỗi lần upload bằng cách append thêm current date hoặc uuid vào file name hoặc sử dụng folders for versioning như sau:
+
+```java
+@Override
+public void upload(List<MultipartFile> files) {
+    this.ensureBucketExists(bucketName);
+
+    for (MultipartFile file : files) {
+        String fileName = this.generateFileName(file);
+        //String fileName = UUID.randomUUID() + "/" + file.getOriginalFilename(); //Folders for versioning
+        try (InputStream inputStream = file.getInputStream()) {
+            minioClient.putObject(
+                    PutObjectArgs.builder()
+                            .bucket(bucketName)
+                            .object(fileName)
+                            .stream(inputStream, file.getSize(), -1)
+                            .contentType(file.getContentType())
+                            .build()
+            );
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to upload file: " + file.getOriginalFilename(), e);
+        }
+    }
+}
+
+private String generateFileName(MultipartFile file) {
+    String originalFilename = file.getOriginalFilename();
+    if (originalFilename == null) {
+        throw new IllegalArgumentException("File name cannot be null");
+    }
+
+    String extension = "";
+    int dotIndex = originalFilename.lastIndexOf(".");
+
+    if (dotIndex != -1) {
+        extension = originalFilename.substring(dotIndex);
+        originalFilename = originalFilename.substring(0, dotIndex);
+    }
+
+    long timestamp = System.currentTimeMillis();
+    return originalFilename + "_" + timestamp + extension;
+}
+```
+
+# 3. Testing
+
+- API upload files:
+
+![Alt text](/static/img/posts/minio/image3.png 'image')
+
+![Alt text](/static/img/posts/minio/image4.png 'image')
+
+- API download file:
+
+![Alt text](/static/img/posts/minio/image5.png 'image')
+
+- API get file pre-signed URL:
+
+![Alt text](/static/img/posts/minio/image6.png 'image')
+
+=> **Lưu Ý**: Các bạn có thể tham khảo toàn bộ source code của mình [tại đây](https://github.com/canhnd15/minio-spring-boot/tree/config-minio)
+
+# 4. Tổng Kết
+
+Vậy là trong bài viết này mình đã cùng các bạn tìm hiểu về MinIO - một Object Storage khá phổ biển hiện nay. Việc tích hợp MinIO vào ứng dụng Spring Boot mang lại một giải pháp lưu trữ đối tượng mạnh mẽ, linh hoạt và tối ưu chi phí.
+
+Với khả năng tương thích cao với Amazon S3 API, MinIO giúp các ứng dụng có thể dễ dàng chuyển đổi giữa môi trường on-premises và cloud, đồng thời tối ưu hiệu suất cho các hệ thống microservices hoặc edge computing.
+
+Hy vọng bài viết này giúp các bạn hiểu thêm về MinIO cũng như làm sao để tích hợp và sử dụng MinIO trong ứng dụng Spring.
+
+Hẹn gặp lại các bạn trong các bài viết tiếp theo. Happy Coding!
