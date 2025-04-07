@@ -1,0 +1,414 @@
+---
+title: 'Rate Limit với Hazelcast Trong Ứng Dụng Spring Boot'
+date: '2025-03-23'
+lastmod: '2024-03-23'
+tags: ['Spring Boot', 'Hazelcast', 'Spring-Framework']
+draft: false
+summary: Trong bài viết này mình sẽ cùng các bạn tìm hiểu về Rate Limit - một kỹ thuật rất quan trọng và được sử dụng nhiều trong các thống client-server để bảo đảm độ ổn định cũng như tính bảo mật của hệ thống. Ngoài ra, chúng ta cũng sẽ tìm hiểu cách áp dụng Hazelcast để triển khai Rate Limit trong ứng dụng Spring Boot.
+images: ['/static/img/cover/posts/minio-springboot.png']
+layout: PostLayout
+---
+
+<TOCInline toc={props.toc} asDisclosure toHeading={3} />
+
+# 1. Rate Limit là gì?
+
+![Alt text](/static/img/posts/hazelcast/cover.png 'image')
+
+### 1.1 - Rate Limit là gì?
+
+> Rate limiting is a technique used in computer systems to control the rate at which requests are sent or processed in order to maintain system stability and security. In web applications, rate limiting restricts the number of requests that a client can make to a server within a given time period to prevent abuse and ensure fair usage of resources among multiple clients.
+
+Nguồn: [https://redis.io/glossary/rate-limiting/](https://redis.io/glossary/rate-limiting/)
+
+Dựa vào định nghĩa bên trên chúng ta có thể hiểu, Rate Limit là một kỹ thuật nhằm **giới hạn số lượng requests** trên một **đơn vị thời gian** tới hệ thống với mục đích đảm bảo tính **ổn định** và **bảo mật** của hệ thống.
+
+Thực tế mình thấy Rate Limit được áp dụng rất nhiều không chỉ trong mô hình các hệ thống web applications (client-server).
+
+Ví dụ như với mô hình microservices, các service cũng gọi lẫn nhau vậy nên cũng có thể áp dụng Rate Limit, hay các database cũng có thể áp dụng Rate Limit để tránh quá tải do truy vấn quá nhiều...
+
+### 1.2 - Các thuật toán Rate Limit?
+
+Rate Limit có thể được triển khai theo nhiều thuật toán:
+
+**Fixed Window**:
+
+- Giới hạn số request theo khoảng thời gian cố định (VD: 100 request mỗi phút).
+- Nếu client gửi quá giới hạn trong khoảng thời gian đó, API sẽ từ chối request cho đến khi reset.
+
+- Ví dụ:
+  - User A có thể gửi tối đa 100 request từ 10:00 → 10:01.
+  - 10:01:00 hệ thống reset lại limit.
+
+![Alt text](/static/img/posts/hazelcast/fixed_window.png 'image')
+
+**Sliding Window**:
+
+- Kiểm tra số lượng request trong khoảng thời gian gần nhất (VD: trong 60 giây vừa qua, tối đa 100 request).
+
+- Ví dụ:
+  - Nếu user gửi 50 request lúc 10:00:30 và 50 request lúc 10:00:50.
+  - => Thì trong khoảng 10:00:50 - 10:01:30 vẫn còn chặn request.
+
+![Alt text](/static/img/posts/hazelcast/sliding_window.png 'image')
+
+**Bucket Token**:
+
+- Mỗi client có một bucket chứa tokens, mỗi request tiêu tốn 1 token.
+- Token được tái tạo theo tốc độ cố định (VD: 10 token/giây).
+- Nếu bucket hết token, requests mới phải chờ token mới được tạo ra.
+
+- Ví dụ:
+  - Mỗi giây có 10 token mới.
+  - Nếu user gửi 20 request ngay lập tức, thì chỉ 10 request đầu tiên được xử lý, 10 request còn lại phải đợi.
+
+![Alt text](/static/img/posts/hazelcast/bucket_token.png 'image')
+
+**Leaky Bucket**:
+
+- Request được đưa vào một hàng đợi giới hạn, hệ thống xử lý request với tốc độ cố định.
+
+- Nếu hàng đợi đầy, các request mới sẽ bị loại bỏ.
+
+- Ví dụ:
+  - Hệ thống xử lý 5 request/giây.
+  - Nếu 20 request đến cùng lúc, chỉ 5 request được xử lý ngay, các request còn lại bị xếp hàng hoặc loại bỏ.
+
+![Alt text](/static/img/posts/hazelcast/leaky_bucket.png 'image')
+
+Các thuật toán `Fixed Window`, `Sliding Window`, `Token Bucket`, `Leaky Bucket` được sử dụng tuỳ thuộc vào thư viện, framework mà chúng ta sử dụng. Với ứng dụng Spring có một số thư viện, phương pháp để triển khai Rate Limit như sau:
+
+- `Bucket4j`
+- `Spring Cloud Gateway + Redis`
+- `Resilience4j`
+- `API Gateway (AWS, GCP, Azure)`
+- `Hazelcast`
+
+Bài viết này mình không đi sâu vào các kỹ thuật, thuật toán để triển khai Rate Limit mà sẽ tập trung vào việc làm sao rate limit sử dụng `Hazelcast` trong ứng dụng Spring Boot.
+
+# 2. Triển khai Rate Limit
+
+### 2.1 - Cài đặt và cấu hình
+
+Các bạn khởi tạo một ứng dụng Spring Boot sử dụng [https://start.spring.io/](https://start.spring.io/)
+
+- Project: _Maven_
+- Spring Boot: _3.x_
+- Project Metadata: _(Packaging: jar, Java 21)_
+
+Và thêm các dependencies sau:
+
+```xml
+<dependency>
+	<groupId>com.hazelcast</groupId>
+	<artifactId>hazelcast</artifactId>
+	<version>5.2.1</version>
+</dependency>
+<dependency>
+	<groupId>com.hazelcast</groupId>
+	<artifactId>hazelcast-spring</artifactId>
+	<version>5.2.1</version>
+</dependency>
+```
+
+Tại sao ở đây lại có hai dependencies?
+
+- **hazelcast**: Là hazelcast core (data grid, distributed caching, concurrency control, cluster management).
+- **hazelcast-spring**: Là library giúp tích hợp và cấu hình Hazelcast với ứng dụng Spring Boot dễ dàng hơn.
+
+=> Tiếp theo, mình sẽ cùng các bạn triển khai Rate Limit trong ứng dụng Spring Boot sử dụng Hazelcast:
+
+![Alt text](/static/img/posts/hazelcast/ratelimit1.png 'image')
+
+- Tạo một ứng dụng Spring Boot (chạy 3 instances)
+- Cấu hình Hazelcast:
+  - `limit`: 5 (lần)
+  - `timeWindows`: 60 (giây)
+- Viết một endpoint: `/api/v1/public/posts [GET]` -> Mô phỏng API cho chức lấy danh sách các bài viết của một ứng dụng blog.
+
+=> Trong 60s gửi lần lượt 5 requests tới các instances -> Kết quả đến request thứ 6 sẽ phải trả về FAIL do đã chạm ngưỡng rate limit.
+
+### 2.2 - Coding
+
+- Bài viết này mình setup môi trường (hazelcast, postgresql) thông qua Docker Compose. Các bạn có thể clone source code, cd tới root folder và chạy lệnh: `docker-compose up -d` để chạy file `docker-compose.yml` bên dưới:
+
+```yml
+version: '3.8'
+services:
+  hazelcast:
+    container_name: hazelcast
+    image: hazelcast/hazelcast:5.2.1
+    ports:
+      - '5701:5701'
+
+  management-center:
+    container_name: hazelcast-management
+    image: hazelcast/management-center:5.2.1
+    ports:
+      - '8080:8080'
+    environment:
+      - MC_DEFAULT_CLUSTER=dev
+      - MC_DEFAULT_CLUSTER_MEMBERS=hazelcast
+
+  postgres:
+    container_name: postgres_db
+    image: postgres:latest
+    ports:
+      - '5433:5432'
+    environment:
+      POSTGRES_DB: 'test_db'
+      POSTGRES_USER: 'root'
+      POSTGRES_PASSWORD: 'root'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
+```
+
+- Cấu hình file `application.yml`:
+
+```yml
+spring:
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    url: jdbc:postgresql://localhost:5433/test_db
+    username: root
+    password: root
+    hikari:
+      max-lifetime: 600000
+
+  jpa:
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+  jackson:
+    time-zone: Asia/Ho_Chi_Minh
+    date-format: dd-MM-yyyy HH:mm:ss
+
+  main:
+    allow-circular-references: true
+
+hazelcast:
+  dev:
+    address: localhost:5701
+    cluster:
+      name: dev
+
+resource:
+  rate-limit:
+    limit: 5
+    time-window: 60
+
+server:
+  port: 8888
+```
+
+- Cấu hình Hazelcast:
+
+```java
+@Configuration
+@EnableTransactionManagement
+@EnableCaching
+public class ConfigHazelcast implements CachingConfigurer {
+    @Value("#{'${hazelcast.dev.address}'.split(',')}")
+    protected String[] address;
+
+    @Value("${hazelcast.dev.cluster.name}")
+    private String clusterName;
+
+    @Bean(name = "hazelcastClient")
+    @PostConstruct
+    public HazelcastInstance hazelcastInstance() {
+        ClientConfig clientConfig = new ClientConfig();
+        clientConfig.setClusterName(clusterName);
+        clientConfig.getNetworkConfig().addAddress(address);
+        clientConfig.getNetworkConfig().setConnectionTimeout(50000);
+        return HazelcastClient.newHazelcastClient(clientConfig);
+    }
+
+    @Override
+    @Bean
+    public CacheManager cacheManager() { // Sử dụng Hazelcast làm Cache Manager
+        return new HazelcastCacheManager(hazelcastInstance());
+    }
+
+    @Override
+    public KeyGenerator keyGenerator() { // Tạo khoá duy nhất cho mỗi lần cache
+        return (target, method, params) -> {
+            StringBuilder sb = new StringBuilder();
+            sb.append(target.getClass().getName());
+            sb.append(".");
+            sb.append(method.getName());
+            sb.append(":params:");
+            for (Object obj : params) {
+                sb.append(String.format("[%s]", obj));
+            }
+            return sb.toString();
+        };
+    }
+}
+```
+
+- Rate Limit annotation, mình sẽ sử dụng annotation này cho API nào mình muốn áp dụng rate limit.
+
+```java
+@Target(ElementType.METHOD)
+@Retention(RetentionPolicy.RUNTIME)
+public @interface RateLimit {
+    int limit();
+    int timeWindow(); // In seconds
+}
+```
+
+- Để xử lý cũng như kiểm tra một request nào đó đã đến ngưỡng limit hay chưa mình viết một class `RateLimitAspect.java`. Class này được triển khai theo cơ chế AOP (Aspect Oriented Programming)
+
+- Bản chất là class này sẽ đọc các thông tin IP (của client), limit, timeWindow (từ annotation `RateLimit`) và gọi hàm để kiểm tra từ `RateLimiterService.java`
+
+```java
+@Aspect
+@Component
+public class RateLimitAspect {
+    private final RateLimiterService rateLimiterService;
+    private final HttpServletRequest request;
+
+    public RateLimitAspect(RateLimiterService rateLimiterService, HttpServletRequest request) {
+        this.rateLimiterService = rateLimiterService;
+        this.request = request;
+    }
+
+    @Around("@annotation(RateLimit)")
+    public Object enforceRateLimit(ProceedingJoinPoint joinPoint) throws Throwable {
+        MethodSignature signature = (MethodSignature) joinPoint.getSignature();
+        Method method = signature.getMethod();
+        RateLimit rateLimit = method.getAnnotation(RateLimit.class);
+
+        String clientIp = request.getRemoteAddr();
+        int limit = rateLimit.limit();
+        int timeWindow = rateLimit.timeWindow();
+
+        if (!rateLimiterService.isAllowed(clientIp, limit, timeWindow)) {
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                    .body("Too many requests. Please try again later.");
+        }
+
+        return joinPoint.proceed();
+    }
+}
+```
+
+- Class `RateLimiterService.java` là nơi chúng ta triển khi logic kiểm tra xem một request (từ một client nào đó) đã chạm ngưỡng rate limit chưa.
+
+- Ở đây, mình kiểm tra thông qua địa chỉ IP của client (còn nhiều cách kiểm tra khác nhau thông qua JWT token, User ID, API key...)
+
+- Cơ chế cũng khá đơn giản, vì Hazelcast là distributed cache nên mình sử dụng `IMap` là một cấu trúc dữ liệu dạng `key,value` được định nghĩa bởi Hazelcast để lưu trữ lại số lần truy cập của từng client (thông qua IP address).
+
+- Với mỗi request, mình sẽ có IP address, bước đầu get trong map theo key là IP address đó, kiểm tra xem `count` đã đạt giới hạn rate limit chưa:
+  - YES => trả về false (request đã đạt giới hạn)
+  - NO => trả về true (cho phép request tiếp tục process)
+
+```java
+@Service
+public class RateLimiterService {
+    private final IMap<String, Integer> requestCounts;
+
+    public RateLimiterService(HazelcastInstance hazelcastInstance) {
+        this.requestCounts = hazelcastInstance.getMap("rate-limit");
+    }
+
+    public boolean isAllowed(String clientIp, int limit, int timeWindowSeconds) {
+        requestCounts.lock(clientIp);
+        try {
+            Integer count = requestCounts.getOrDefault(clientIp, 0);
+
+            if (count >= limit) {
+                return false; // Rate limit exceeded
+            }
+
+            requestCounts.put(clientIp, count + 1, timeWindowSeconds, TimeUnit.SECONDS);
+            return true;
+        } finally {
+            requestCounts.unlock(clientIp);
+        }
+    }
+}
+```
+
+- Ở đây, mình áp dụng rate limit cho `ProductController` bằng cách sử dụng `@RateLimit` như bên dưới.
+
+- Ví dụ:
+  - Với đầu lấy danh sách sản phẩm (`[GET] /api/v1/products`) => mình giới hạn trong 1 phút, mỗi client (dựa trên IP) chỉ được gửi 10 requests.
+  - Với đầu tạo thông tin sản phẩm (`[POST] /api/v1/products`) => mình giới hạn trong 1 phút, mỗi client (dựa trên IP) chỉ được gửi 5 requests.
+
+```java
+@RestController
+@RequestMapping("/api/v1")
+@RequiredArgsConstructor
+public class ProductController {
+    private final ProductService productService;
+
+    @RateLimit(limit = 10, timeWindow = 60)
+    @GetMapping("/products")
+    ResponseEntity<List<Product>> getProducts() {
+        return ResponseEntity.ok(productService.getProductByStatus(1));
+    }
+
+    @RateLimit(limit = 5, timeWindow = 60)
+    @PostMapping("/products")
+    ResponseEntity<?> createProduct() {
+        return ResponseEntity.ok(productService.createProduct());
+    }
+
+    @DeleteMapping("/products")
+    ResponseEntity<Void> deleteProduct(@RequestParam("productId") Long productId) {
+        productService.deleteProduct(productId);
+        return ResponseEntity.noContent().build();
+    }
+}
+```
+
+### 2.3 - Testing
+
+Kịch bản như mình đã trình bày ở mục 2.1, để tạo được 3 instances mình sẽ build ứng dụng ra file `.jar` và chạy trên 3 ports khác nhau:
+
+```shell
+java -jar hazelcast-0.0.1-SNAPSHOT.jar --server.port=3333
+
+java -jar hazelcast-0.0.1-SNAPSHOT.jar --server.port=4444
+
+java -jar hazelcast-0.0.1-SNAPSHOT.jar --server.port=5555
+```
+
+Mình sẽ test đầu tạo product như sau:
+
+- Test trên port: `3333` => Tạo 2 products
+
+![Alt text](/static/img/posts/hazelcast/image_test_1.png 'image')
+
+- Test trên port: `4444` => Tạo 2 products
+
+![Alt text](/static/img/posts/hazelcast/image_test_2.png 'image')
+
+- Test trên port: `5555` => Tạo 1 products
+
+![Alt text](/static/img/posts/hazelcast/image_test_3.png 'image')
+
+- Test lại trên toàn bộ các instances -> `HTTP 429 To Many Requests`
+
+![Alt text](/static/img/posts/hazelcast/image_test_4.png 'image')
+
+![Alt text](/static/img/posts/hazelcast/image_test_5.png 'image')
+
+![Alt text](/static/img/posts/hazelcast/image_test_6.png 'image')
+
+**Lưu Ý**: Trên thực tế, các instances của chúng ta sẽ chạy ở nhiều servers khác nhau, bài toán đặt ra là làm sao vẫn đảm bảo được yêu cầu như hiện tại. Mình sẽ cùng các bạn tìm hiểu kỹ hơn trong các bài viết tiếp theo nha.
+
+# 3. Tổng Kết
+
+Vậy là trong bài viết này mình đã cùng các bạn tìm hiểu về Rate Limit cũng như cách để triển khai Rate Limit trong ứng dụng Spring Boot thông qua Hazelcast. Thật sự là Hazelcast còn làm được rất nhiều trò hay ho, mình sẽ cùng các bạn tìm hiểu dần trong các bài viết tiếp theo.
+
+Hy vọng bài viết này giúp các bạn hiểu thêm về Rate Limit cũng như làm sao để tích hợp vào ứng dụng Spring thông qua Hazelcast.
+
+Hẹn gặp lại các bạn trong các bài viết tiếp theo. Happy Coding!

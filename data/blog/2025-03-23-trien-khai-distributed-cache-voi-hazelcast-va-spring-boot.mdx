@@ -1,0 +1,337 @@
+---
+title: 'Distributed Cache với Hazelcast Trong Ứng Dụng Spring Boot'
+date: '2025-04-06'
+lastmod: '2024-04-06'
+tags: ['Spring Boot', 'Hazelcast', 'Spring-Framework']
+draft: false
+summary: Hiện nay, nhiều ứng dụng được thiết kế theo mô hình hệ thống phân tán (distributed systems) nhằm đáp ứng các yêu cầu về khả năng mở rộng (scalability), hiệu năng cao (high performance) và tính sẵn sàng (high availability). Và một trong những thành phần quan trọng nhất trong hệ thống phân tán là bộ nhớ đệm phân tán (distributed cache).
+images: ['/static/img/cover/posts/distributedcache.png']
+layout: PostLayout
+---
+
+<TOCInline toc={props.toc} asDisclosure toHeading={3} />
+
+# 1. Distributed Cache là gì?
+
+![Alt text](/static/img/posts/hazelcast/distributed_cache/cover.png 'image')
+
+### 1.1 - Distributed Cache là gì?
+
+> Distributed caching involves storing data across multiple machines or nodes, often in a network. This type of caching is essential for applications that need to scale across multiple servers or are distributed geographically. Distributed caching ensures that data is available close to where it’s needed, even if the original data source is remote or under heavy load.
+
+Nguồn: [https://redis.io/glossary/distributed-caching/](https://redis.io/glossary/distributed-caching/)
+
+Có lẽ mình và các bạn đã quá quen với khái niệm caching, caching được hiểu là việc lưu trữ lại dữ liệu thường là trên bộ nhớ tạm (RAM) để giúp việc truy vấn dữ liệu nhanh hơn (vì việc đọc dữ liệu từ RAM thường nhanh hơn đọc từ ổ cứng).
+
+Caching thường được chia làm 2 kiểu:
+
+- **Local caching**: lưu trữ dữ liệu trên một máy (machines) hoặc application duy nhất.
+- **Distributed caching**: lưu trữ dữ liệu giữa nhiều máy (machines) hoặc nodes, thường là trong cùng một network.
+
+=> Tại sao lại cần distributed caching?
+
+- **Scalability**: Có những lúc cao điểm, requests tới hệ thống tăng, chúng ta có thể tăng thêm số lượng các cache server để đảm bảo khả năng mở rộng.
+- **Fault tolerance**: Nếu một cache server bị lỗi (down), requests sẽ được route tới những cache server khác (trong hệ thống) tránh việc gây gián đoạn.
+- **Performance**: Data được lưu trữ phân tán, gần với vị trí người dùng, từ đó giảm thiểu thời gian truy xuất, tăng tốc độ phản hồi response trả về.
+
+### 1.2 - Hazelcast là gì?
+
+**Định nghĩa**:
+
+> Hazelcast is a distributed computation and storage platform for consistently low-latency querying, aggregation and stateful computation against event streams and traditional data sources.
+
+Nguồn: https://docs.hazelcast.com/hazelcast/latest/what-is-hazelcast
+
+**Hazelcast làm được gì?**
+
+- Distributed Caching
+- Pub/Sub Messaging
+- Scheduled Tasks
+- Querying & Indexing
+
+**Các key components**:
+
+- `Member`: Là một đơn vị tính toán và lưu trữ dữ liệu trong Hazelcast
+- `Cluster`: Là một tập hợp các `members` giao tiếp với nhau. Các `members` sẽ tự động ghép với nhau để tạo thành một `cluster` tại thời điểm runtime.
+- `Partitions`: Là các phân đoạn bộ nhớ dùng để lưu trữ các phần dữ liệu và được phân phối đều giữa các `members` trong một `cluster`.
+
+# 2. Triển khai Distributed Cache
+
+### 2.1 - Cài đặt và cấu hình
+
+Các bạn khởi tạo một ứng dụng Spring Boot sử dụng [https://start.spring.io/](https://start.spring.io/)
+
+- Project: _Maven_
+- Spring Boot: _3.x_
+- Project Metadata: _(Packaging: jar, Java 21)_
+
+Và thêm các dependencies của Hazelcast như sau:
+
+```xml
+<dependency>
+	<groupId>com.hazelcast</groupId>
+	<artifactId>hazelcast</artifactId>
+	<version>5.2.1</version>
+</dependency>
+<dependency>
+	<groupId>com.hazelcast</groupId>
+	<artifactId>hazelcast-spring</artifactId>
+	<version>5.2.1</version>
+</dependency>
+```
+
+Tại sao ở đây lại có hai dependencies?
+
+- **hazelcast**: Là hazelcast core (data grid, distributed caching, concurrency control, cluster management).
+- **hazelcast-spring**: Là library giúp tích hợp và cấu hình Hazelcast với ứng dụng Spring Boot dễ dàng hơn.
+
+=> Tiếp theo, mình sẽ cùng các bạn triển khai Distributed Cache trong ứng dụng Spring Boot sử dụng Hazelcast:
+
+![Alt text](/static/img/posts/hazelcast/distributed_cache/hazelcast_1.png 'image')
+
+=> Kịch bản là mình có một ứng dụng Spring Boot được chạy với **3 instances** như ảnh bên trên. Bình thường các action như tạo sản phẩm (create products), hoặc lấy danh sách sản phẩm (get products) đều sẽ phải query vào database để thực hiện.
+
+Nhưng nếu sử dụng Hazelcast thì mình mong muốn:
+
+- Chỉ thao tác tạo sản phẩm (`[POST] api/v1/products`) là luôn query vào database.
+- Trường hợp lấy thông tin một sản phẩm (`[POST] api/v1/products/1`) sẽ kiểm tra trong cache (Hazelcast). Nếu query này đã có người thực hiện (trước đó) thì không gọi vào database nữa mà lấy luôn kết quả từ cache.
+
+### 2.2 - Coding
+
+- Bài viết này mình setup môi trường (hazelcast, postgresql) thông qua Docker Compose. Các bạn có thể clone source code, cd tới root folder và chạy lệnh: `docker-compose up -d` để chạy file `docker-compose.yml` bên dưới:
+
+```yml
+version: '3.8'
+services:
+  hazelcast:
+    container_name: hazelcast
+    image: hazelcast/hazelcast:5.2.1
+    ports:
+      - '5701:5701'
+
+  management-center:
+    container_name: hazelcast-management
+    image: hazelcast/management-center:5.2.1
+    ports:
+      - '8080:8080'
+    environment:
+      - MC_DEFAULT_CLUSTER=dev
+      - MC_DEFAULT_CLUSTER_MEMBERS=hazelcast
+
+  postgres:
+    container_name: postgres_db
+    image: postgres:latest
+    ports:
+      - '5433:5432'
+    environment:
+      POSTGRES_DB: 'test_db'
+      POSTGRES_USER: 'root'
+      POSTGRES_PASSWORD: 'root'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
+```
+
+- Cấu hình file `application.yml`:
+
+```yml
+spring:
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    url: jdbc:postgresql://localhost:5433/test_db
+    username: root
+    password: root
+    hikari:
+      max-lifetime: 600000
+
+  jpa:
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+  jackson:
+    time-zone: Asia/Ho_Chi_Minh
+    date-format: dd-MM-yyyy HH:mm:ss
+
+  main:
+    allow-circular-references: true
+
+hazelcast:
+  dev:
+    address: localhost:5701
+    cluster:
+      name: dev
+
+resource:
+  rate-limit:
+    limit: 5
+    time-window: 60
+
+server:
+  port: 8888
+```
+
+- Cấu hình Hazelcast:
+
+```java
+@Configuration
+@EnableTransactionManagement
+@EnableCaching
+public class ConfigHazelcast implements CachingConfigurer {
+    @Value("#{'${hazelcast.dev.address}'.split(',')}")
+    protected String[] address;
+
+    @Value("${hazelcast.dev.cluster.name}")
+    private String clusterName;
+
+    @Bean(name = "hazelcastClient")
+    @PostConstruct
+    public HazelcastInstance hazelcastInstance() {
+        ClientConfig clientConfig = new ClientConfig();
+        clientConfig.setClusterName(clusterName);
+        clientConfig.getNetworkConfig().addAddress(address);
+        clientConfig.getNetworkConfig().setConnectionTimeout(50000);
+        return HazelcastClient.newHazelcastClient(clientConfig);
+    }
+
+    @Override
+    @Bean
+    public CacheManager cacheManager() { // Sử dụng Hazelcast làm Cache Manager
+        return new HazelcastCacheManager(hazelcastInstance());
+    }
+
+    @Override
+    public KeyGenerator keyGenerator() { // Tạo khoá duy nhất cho mỗi lần cache
+        return (target, method, params) -> {
+            StringBuilder sb = new StringBuilder();
+            sb.append(target.getClass().getName());
+            sb.append(".");
+            sb.append(method.getName());
+            sb.append(":params:");
+            for (Object obj : params) {
+                sb.append(String.format("[%s]", obj));
+            }
+            return sb.toString();
+        };
+    }
+}
+```
+
+- Phương thức `hazelcastInstance()` trả về một instance của class HazelcastClient để kết nối tới `cluster`.
+- Bản chất ứng dụng Spring cũng có cơ chế caching, và ở đây mình cấu hình để sử dụng Hazelcast cho cơ chế caching đó.
+- Phương thức `keyGenerator()` cho phép tuỳ chỉnh cách tạo cache key bởi vì cơ chế caching của Spring (`@Cacheable`, `@CachePut`, v.v.) là mỗi lần gọi phương thức được cache đều phải gắn với một key để xác định duy nhất kết quả được lưu.
+
+```java
+@Service(value = "productService")
+public class ProductServiceImpl implements ProductService{
+    private final String cacheName = "hzProducts";
+
+    @Resource
+    private ProductRepository productRepo;
+
+    @Override
+    @Cacheable(value = cacheName)
+    @Transactional(readOnly = true)
+    public List<Product> getProductByStatus(Integer status) {
+        return productRepo.getProductByStatus(status);
+    }
+
+    @Override
+    @CacheEvict(value = cacheName, allEntries = true)
+    @Transactional(rollbackFor = Exception.class)
+    public Product createProduct() {
+        Product product = Product.builder()
+                .name("TestName")
+                .code("1234ABC")
+                .createdBy("dev1")
+                .price(new BigDecimal(1000))
+                .createdDate(new Date())
+                .lastUpdated(new Date())
+                .status(1)
+                .build();
+        return productRepo.save(product);
+    }
+
+    @Override
+    @CacheEvict(value = cacheName, allEntries = true)
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteProduct(Long id) {
+        Optional<Product> product = productRepo.findById(id);
+        product.ifPresent(value -> productRepo.deleteById(value.getId()));
+    }
+
+    @Override
+    @Cacheable(value = cacheName)
+    @Transactional(readOnly = true)
+    public Product getProductDetail(Long id) {
+        return productRepo.findById(id)
+                .orElseThrow(() -> new RuntimeException("Product not found"));
+    }
+}
+```
+
+Lưu ý: Các phương thức chúng ta muốn áp dụng hoặc không áp cơ chế caching thì đề phải thêm các annotation sau:
+
+- `@Cacheable`: Thêm vào các phương thức muốn áp dụng cache.
+- `@CacheEvict`: Thêm vào các phương thức không muốn áp dụng cache.
+
+=> Okay, vậy là mình và các bạn đã cấu hình xong việc sử dụng Hazelcast để triển khai cơ chế distributed caching trong ứng dụng Spring Boot. Bây giờ mình sẽ test theo kịch bản đã đặt ra bên trên.
+
+### 2.3 - Testing
+
+Kịch bản như mình đã trình bày ở mục 2.1, để tạo được 3 instances mình sẽ build ứng dụng ra file `.jar` và chạy trên 3 ports khác nhau:
+
+```shell
+maven clean install
+
+cd ./target
+
+java -jar hazelcast-0.0.1-SNAPSHOT.jar --server.port=3333
+
+java -jar hazelcast-0.0.1-SNAPSHOT.jar --server.port=4444
+
+java -jar hazelcast-0.0.1-SNAPSHOT.jar --server.port=5555
+```
+
+Mình sẽ test đầu tạo product trên instance chạy `port:3333`:
+
+=> Test trên port: `3333` => Tạo 2 products
+
+```shell
+curl --location --request POST 'http://localhost:3333/api/v1/products'
+```
+
+=> Kết quả: Câu sql được log ra -> đã query vào database:
+
+![Alt text](/static/img/posts/hazelcast/distributed_cache/test_1.png 'image')
+
+Tiếp theo mình get thông tin product vừa được tạo (id=33) trên 2 instances chạy `port:4444` và `port:5555`:
+
+- Test trên `port:4444`:
+
+curl --location 'http://localhost:4444/api/v1/products/33'
+
+=> Kết quả: Câu SQL được log ra -> do lần đầu query vào database để lấy thông tin product có id=33
+
+![Alt text](/static/img/posts/hazelcast/distributed_cache/test_2.png 'image')
+
+- Test trên `port:5555`:
+
+curl --location 'http://localhost:5555/api/v1/products/33'
+
+=> Kết quả: Câu SQL KHÔNG được log ra -> do đã được Hazelcast cache lại.
+
+![Alt text](/static/img/posts/hazelcast/distributed_cache/test_3.png 'image')
+
+**Lưu Ý**: Trên thực tế, các instances của chúng ta sẽ chạy ở nhiều servers khác nhau, bài toán đặt ra là làm sao vẫn đảm bảo được yêu cầu như hiện tại. Mình sẽ cùng các bạn tìm hiểu kỹ hơn trong các bài viết tiếp theo nha.
+
+# 3. Tổng Kết
+
+Vậy là trong bài viết này, mình đã cùng các bạn tìm hiểu về distributed cache cũng như cách tích hợp Hazelcast để triển khai distributed cache trong ứng dụng Spring Boot. Hazelcast còn rất nhiều tính năng thú vị khác mà mình sẽ cùng các bạn tìm hiểu trong các bài viết tiếp theo.
+
+Hy vọng bài viết này giúp các bạn hiểu rõ hơn về distributed cache và cách áp dụng vào ứng dụng vào ứng dụng Spring Boot.
+
+Hẹn gặp lại các bạn trong những bài viết tiếp theo. Happy Coding!
