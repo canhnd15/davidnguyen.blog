@@ -73,19 +73,7 @@ export default function PostLayout({ content, authorDetails, next, prev, childre
                         />
                       )}
                       <dl className="whitespace-nowrap text-sm font-medium leading-5">
-                        <dt className="sr-only">Name</dt>
                         <dd className="text-gray-900 dark:text-gray-100">{author.name}</dd>
-                        <dt className="sr-only">Twitter</dt>
-                        <dd>
-                          {author.twitter && (
-                            <Link
-                              href={author.twitter}
-                              className="text-primary-500 hover:text-primary-600 dark:hover:text-primary-400"
-                            >
-                              {author.twitter.replace('https://twitter.com/', '@')}
-                            </Link>
-                          )}
-                        </dd>
                       </dl>
                     </li>
                   ))}
@@ -142,7 +130,7 @@ export default function PostLayout({ content, authorDetails, next, prev, childre
                   </div>
                 )}
               </div>
-              <div className="pt-4 xl:pt-8">
+              {/* <div className="pt-4 xl:pt-8">
                 <Link
                   href={`/${basePath}`}
                   className="text-primary-500 hover:text-primary-600 dark:hover:text-primary-400"
@@ -150,6 +138,22 @@ export default function PostLayout({ content, authorDetails, next, prev, childre
                 >
                   &larr; Back to the blog
                 </Link>
+              </div> */}
+              <div className="mr-6 pt-6 text-center font-mono text-zinc-500">
+                <p className="pb-2">Buy Me a Coffee! ☕️ </p>
+                {authorDetails.map((author) => (
+                  <li className="flex items-center space-x-2" key={author.name}>
+                    {author.code && (
+                      <Image
+                        src={author.code}
+                        width={1000}
+                        height={1000}
+                        alt="avatar"
+                        className="h-1000 w-1000 rounded-2xl"
+                      />
+                    )}
+                  </li>
+                ))}
               </div>
             </footer>
           </div>

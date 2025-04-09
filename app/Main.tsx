@@ -18,9 +18,8 @@ export default function Home({ posts }) {
             Hello, Friends!
           </h1>
           <h2 className="text-2lg prose text-gray-600 dark:text-gray-400">
-            {`Welcome to my blog, the blog of a minimalist software engineer. Currently, I'm working as a 
-            full-stack web engineer. I love reading, writing, and in my free time, I usually write on my blog, 
-            travel to new places, or practice calisthenics.`}
+            {`Hế lô các bạn, chào mừng các bạn đến với blog nhỏ của mình - nơi mình chia sẻ cũng như document lại những gì mình đã học, đã làm. 
+            Hi vọng nó sẽ giúp mình chịu khó viết hơn, và thật vui nếu nó đem lại giá trị gì đó cho các bạn.`}
           </h2>
         </div>
         <div className="my-4 flex w-[300px] items-center justify-center sm:w-[400px] md:w-[550px]">
