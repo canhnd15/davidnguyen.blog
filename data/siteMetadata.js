@@ -8,6 +8,7 @@ const siteMetadata = {
   siteUrl: 'https://www.davidnguyen.blog',
   siteRepo: 'https://github.com/canhnd15/davidblog',
   image: '/static/img/avatar.png',
+  code: '/static/img/qrcode.jpg',
   socialBanner: '/static/img/twitter-card.png',
   email: 'canhnd15@gmail.com',
   youtube: 'https://www.youtube.com/c/laptrinhb2a',
