@@ -16,7 +16,7 @@ layout: PostLayout
 Bài viết này mình sẽ chia làm 2 phần:
 
 - **Phần 1**: Mình sẽ cùng các bạn xây dựng một Jenkins pipeline cơ bản để build và run một ứng dụng Spring Boot (có kết nối đến cơ sở dữ liệu) thông qua Docker ở môi trường local.
-- **Phần 2**: Mình sẽ triển khai pipeline này trên server (AWS EC2) và cải tiến một số điểm của pipeline cho phép gửi thông báo cũng như tự động hoá việc build code khi source code có update.
+- **[Phần 2](/blog/build-ci-pipeline-with-jenkins-part-2)**: Mình sẽ triển khai pipeline này trên server (AWS EC2) và cải tiến một số điểm của pipeline cho phép gửi thông báo cũng như tự động hoá việc build code khi source code có update.
 
 Các stages trong pipeline (phần 1)
 
@@ -138,6 +138,6 @@ Nếu tất cả các stages đều xanh hết là pipeline build thành công. 
 
 # 4. Tổng Kết
 
-Vậy là ở phần 1 này mình đã cùng các bạn setup một Jenkins pipeline đơn giản để build, run và deploy một ứng dụng Spring Boot trên môi trường Docker container (ở local). Thực tế, chúng ta sẽ triển khai trên các server và mình sẽ cùng các bạn tìm hiểu trong phần 2 của bài viết.
+Vậy là ở phần 1 này mình đã cùng các bạn setup một Jenkins pipeline đơn giản để build, run và deploy một ứng dụng Spring Boot trên môi trường Docker container (ở local). Thực tế, chúng ta sẽ triển khai trên các server và mình sẽ cùng các bạn tìm hiểu trong [phần 2](/blog/build-ci-pipeline-with-jenkins-part-1) của bài viết.
 
 See you in the next posts. Happy Coding!

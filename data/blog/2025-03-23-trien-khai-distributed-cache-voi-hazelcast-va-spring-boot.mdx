@@ -98,7 +98,7 @@ Nhưng nếu sử dụng Hazelcast thì mình mong muốn:
 
 ### 2.2 - Coding
 
-- Bài viết này mình setup môi trường (hazelcast, postgresql) thông qua Docker Compose. Các bạn có thể clone source code, cd tới root folder và chạy lệnh: `docker-compose up -d` để chạy file `docker-compose.yml` bên dưới:
+- Bài viết này mình setup môi trường (hazelcast, postgresql) thông qua Docker Compose. Các bạn có thể clone [source code](https://github.com/canhnd15/hazelcast-spring-boot), cd tới root folder và chạy lệnh: `docker-compose up -d` để chạy file `docker-compose.yml` bên dưới:
 
 ```yml
 version: '3.8'
@@ -312,7 +312,9 @@ Tiếp theo mình get thông tin product vừa được tạo (id=33) trên 2 in
 
 - Test trên `port:4444`:
 
+```shell
 curl --location 'http://localhost:4444/api/v1/products/33'
+```
 
 => Kết quả: Câu SQL được log ra -> do lần đầu query vào database để lấy thông tin product có id=33
 
@@ -320,7 +322,9 @@ curl --location 'http://localhost:4444/api/v1/products/33'
 
 - Test trên `port:5555`:
 
+```shell
 curl --location 'http://localhost:5555/api/v1/products/33'
+```
 
 => Kết quả: Câu SQL KHÔNG được log ra -> do đã được Hazelcast cache lại.
 
