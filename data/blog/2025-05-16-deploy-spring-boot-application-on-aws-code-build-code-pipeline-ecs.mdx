@@ -1,0 +1,362 @@
+---
+title: '[AWS] - Làm Sao Triển Khai `Realworld Spring Boot App` trên AWS ECS thông qua CodeBuild và CodePipeline?'
+date: '2025-05-16'
+lastmod: '2024-05-16'
+tags: ['AWS', 'ECS', 'Code-Build', 'Code-Pipeline', 'Spring Boot', 'Spring-Framework']
+draft: false
+summary: Trong bài viết này, mình sẽ cùng anh em tìm hiểu cách triển khai ứng dụng Spring Boot lên AWS ECS một cách tự động thông qua CodeBuild và CodePipeline. Đây là flow CI/CD đơn giản giúp chúng ta dễ dàng kiểm soát quá trình build, test và deploy, đồng thời tối ưu hóa hiệu suất việc triển khai code trên nền tảng AWS.
+images: ['/static/img/cover/posts/grpc-cover.png']
+layout: PostLayout
+---
+
+<TOCInline toc={props.toc} asDisclosure toHeading={3} />
+
+# 1. - Chúng ta sẽ làm gì?
+
+=> Khi mình Google search thử các bài hướng dẫn cấu hình triển khai ứng dụng Spring trên môi trường AWS thì phần lớn các bài viết đều là những bài demo, tức là chỉ deploy một ứng dụng đơn thuần (không có kết nối tới database, không có cấu hình).
+
+=> Câu hỏi là, trong thực tế các ứng dụng Spring nếu được triển khai lên môi trường AWS sẽ như thế nào? Có những cách thức nào? Làm sao đảm bảo kết nối từ ứng dụng tới database, hay làm sao bảo vệ được các thông tin cấu hình nhạy cảm?
+
+<p align="center">
+  <img src="/static/img/posts/aws-cicd/image_1.png" alt="Alt text" title="image" />
+</p>
+
+Flow đơn giản bên trên mô tả cách chạy một ứng dụng Spring dưới dạng Docker container trên môi trường AWS cloud thông qua ECS và ECR.
+
+Thực tế, có nhiều cách để chạy một ứng Spring, ví dụ:
+
+- Chạy trưc tiếp lệnh `java -jar <app-name>.jar`.
+- Chạy thông qua các web server như [Tomcat](https://tomcat.apache.org/), [Jetty](https://jetty.org/index.html), [GlassFish](https://glassfish.org/).
+- Chạy dưới dạng Docker containers.
+
+👉 Bài viết này, mình sẽ cùng anh em tập trung vào cách số 3 và cụ thể là làm sao để `AUTOMATICALLY` `BUILD` và `DEPLOY` một ứng dụng Spring Boot thực tế lên môi trường AWS thông qua AWS `RDS`, `CodeBuild`, `CodePipeline`, `Secret Manager`, `ECR`, `ECS`
+
+👉 Toàn bộ flow của hệ thống chúng ta sẽ triển khai trong bài viết này.
+
+<p align="center">
+  <img src="/static/img/posts/aws-cicd/full_flow.png" alt="Alt text" title="image" />
+</p>
+
+# 2. - Setup ứng dụng Spring Boot
+
+**NOTE**: Nếu bạn nào muốn tập trung vào mục 3 thì có thể tham khảo source code của mình [tại đây](https://github.com/canhnd15/aws-cicd)
+
+### 2.1 - Ứng dụng này làm gì?
+
+👉 Về nghiệp vụ, đây một ứng dụng Spring Boot đơn giản, cung cấp các APIs cho một hệ thống bán khoá học trực tuyến -> mình tạm gọi là `course-service`.
+
+- Tạo khoá học mới: `POST /courses`
+- Lấy danh sách toàn bộ khoá học: `GET /courses`
+
+### 2.2 - Làm sao cấu hình database?
+
+Mình sử dụng Postgres database và dựng luôn trên AWS thông qua AWS RDS. Cụ thể các bước setup mình sẽ đề cập ở mục [3.1](/blog/deploy-spring-boot-application-on-aws-code-build-code-pipeline-ecs#31---d%E1%BB%B1ng-postgres-database-aws-rds)
+
+Về phần cấu hình, có hai điểm cần lưu ý:
+
+- Các thông tin kết nối đến database được mình để dưới dạng tham số và truyền vào trong quá trình runtime để đảm bảo việc bảo mật.
+
+```yml
+# ========== Database Configuration ==========
+spring.datasource.url=${DB_URL}
+spring.datasource.username=${DB_USERNAME}
+spring.datasource.password=${DB_PASSWORD}
+```
+
+- Sử dụng liquibase để quản lý version các update đối với database.
+
+```yml
+spring.liquibase.change-log=classpath:/db/liquibase-changelog.xml
+```
+
+### 2.3 - Làm sao build và run ứng dụng ở local?
+
+Như mình đã đề cập, ứng dụng được triển khai ứng dụng dưới dạng Docker container -> mình có tạo một file `Dockerfile` cơ bản như sau:
+
+```Dockerfile
+FROM openjdk:17
+
+WORKDIR /app
+
+COPY ./target/course-service.jar /app
+
+EXPOSE 8090
+
+CMD ["java", "-jar", "course-service.jar"]
+```
+
+- Build ứng dụng -> File `.jar`
+
+```shell
+mvn clean install -D DB_URL=<database URL> -D DB_USERNAME=<database name> -D DB_PASSWORD=<database password>
+```
+
+- Build ứng dụng -> Docker image
+
+```shell
+docker build -t  course-service:latest .
+```
+
+# 3. - Setup AWS
+
+### 3.1 - Dựng Postgres database (AWS RDS)
+
+- Aurora and RDS -> Databases -> Create database -> PostgresSQL
+
+<p align="center">
+  <img src="/static/img/posts/aws-cicd/db_1.png" alt="Alt text" title="image" />
+</p>
+
+<p align="center">
+  <img src="/static/img/posts/aws-cicd/db_2.png" alt="Alt text" title="image" />
+</p>
+
+- Free tier and Single-AZ DB instance deployment (1 instance) -> mình dùng free tier cho đỡ mất phí, con nhà nghèo mà =))
+
+<p align="center">
+  <img src="/static/img/posts/aws-cicd/db_3.png" alt="Alt text" title="image" />
+</p>
+
+- anh em nhập các thông tin cấu hình DB instance identifier, master username, password -> nhớ lưu lại password anh em nhé.
+
+<p align="center">
+  <img src="/static/img/posts/aws-cicd/db_4.png" alt="Alt text" title="image" />
+</p>
+
+- Check `Yes` nếu anh em muốn public DB để bên ngoài internet có thể connect được.
+
+<p align="center">
+  <img src="/static/img/posts/aws-cicd/db_5.png" alt="Alt text" title="image" />
+</p>
+
+- Các thông tin khác anh em có thể để mặc định.
+
+=> Vậy là setup xong database -> anh em có thể vào tab `Configuration` để xem lại các thông tin cấu hình.
+
+<p align="center">
+  <img src="/static/img/posts/aws-cicd/db_6.png" alt="Alt text" title="image" />
+</p>
+
+### 3.2 - Cấu hình Secret Manager
+
+- Ở mục 2.2, mình có đề cập đến việc các tham số cấu hình database sẽ được truyền dưới dạng tham số tại thời điểm runtime. Vậy các thông tin đó được lưu ở đâu?
+
+=> Trong bài viết này, mình sử dụng AWS Secret Manager để lưu như sau:
+
+<p align="center">
+  <img src="/static/img/posts/aws-cicd/sm_1.png" alt="Alt text" title="image" />
+</p>
+
+<p align="center">
+  <img src="/static/img/posts/aws-cicd/sm_2.png" alt="Alt text" title="image" />
+</p>
+
+Next đến step 4 (Review) -> Store
+
+<p align="center">
+  <img src="/static/img/posts/aws-cicd/sm_3.png" alt="Alt text" title="image" />
+</p>
+
+Edit credentials -> thêm một biến là url trỏ đến database.
+
+<p align="center">
+  <img src="/static/img/posts/aws-cicd/sm_4.png" alt="Alt text" title="image" />
+</p>
+
+### 3.3 - Dựng CodeBuild
+
+- CodeBuild -> Build projects -> Create build project
+
+<p align="center">
+  <img src="/static/img/posts/aws-cicd/build_1.png" alt="Alt text" title="image" />
+</p>
+
+- Chọn Source provider -> mình chọn GitHub (vì code để trên GitHub). Lưu ý, nếu các bạn chưa kết nối tới GitHub bao giờ thì phải kết nối trước -> Chọn các option như bên dưới.
+
+<p align="center">
+  <img src="/static/img/posts/aws-cicd/build_2.png" alt="Alt text" title="image" />
+</p>
+
+- `buildspec.yaml` là các bước để 'hướng dẫn' CodeBuild thực hiện: build project thành file `.jar` -> build ra Docker image -> đẩy Docker image lên ECR.
+
+- Các bạn có thể Insert build commands -> Switch to editor -> Paste nội dung file `buildspec.yaml` vào (LƯU Ý: Phải sửa lại các thông tin cho đúng với AWS account bạn cấu hình). Hoặc check tab `Use a buildspec file` -> sử dụng file `buildpsec.yaml` tại root folder của project luôn.
+
+<p align="center">
+  <img src="/static/img/posts/aws-cicd/build_3.png" alt="Alt text" title="image" />
+</p>
+
+- Để CodeBuild có thể pull image từ ECR và đọc các thông tin cấu hình database trong file `buildspec.yaml` -> Chúng ta phải cấp quyền cho role được tạo như bên dưới.
+
+<p align="center">
+  <img src="/static/img/posts/aws-cicd/build_4.png" alt="Alt text" title="image" />
+</p>
+
+- Add permissioins -> Attach policies -> Search `AmazonEC2ContainerRegistryFullAccess`, `AmazonEC2ContainerRegistryPowerUser`, `SecretsManagerReadWrite`
+
+<p align="center">
+  <img src="/static/img/posts/aws-cicd/build_5.png" alt="Alt text" title="image" />
+</p>
+
+<p align="center">
+  <img src="/static/img/posts/aws-cicd/build_6.png" alt="Alt text" title="image" />
+</p>
+
+- Bấm `Start build` -> Bắt đầu quá trình build -> Chờ
+
+<p align="center">
+  <img src="/static/img/posts/aws-cicd/build_7.png" alt="Alt text" title="image" />
+</p>
+
+### 3.4 - Dựng ECR (Elastic Container Registry)
+
+- ECR là nơi lưu trữ các images (tương tự như DockerHub). Để tạo một ECR:
+
+Amazon ECR -> Private Registy -> Repository -> Create Repository
+
+<p align="center">
+  <img src="/static/img/posts/aws-cicd/ecr_0.png" alt="Alt text" title="image" />
+</p>
+
+Đặt tên -> Để mặc định các option -> Create
+
+<p align="center">
+  <img src="/static/img/posts/aws-cicd/ecr_1.png" alt="Alt text" title="image" />
+</p>
+
+### 3.5 - Dựng ECS (cluster, service, task definition)
+
+=> Tạo Task Definition:
+
+Amazon Elastic Container Service -> Task definition -> Create new task definition
+
+<p align="center">
+  <img src="/static/img/posts/aws-cicd/ecs_1.png" alt="Alt text" title="image" />
+</p>
+
+Chọn launch type: [AWS Fargate](https://aws.amazon.com/fargate/)
+
+<p align="center">
+  <img src="/static/img/posts/aws-cicd/ecs_2.png" alt="Alt text" title="image" />
+</p>
+
+Ở mục Task Role -> chọn ecsTaskExecutionRole
+
+<p align="center">
+  <img src="/static/img/posts/aws-cicd/ecs_4.png" alt="Alt text" title="image" />
+</p>
+
+Lưu Ý: Do chúng ta đọc thông tin cấu hình từ Secret Manager -> Các bạn attach thêm policies là SecretsManagerReadWrite để task có quyền đọc thông tin từ SM.
+
+<p align="center">
+  <img src="/static/img/posts/aws-cicd/ecs_5.png" alt="Alt text" title="image" />
+</p>
+
+Ở mục Container -> chọn registry -> chọn image -> mapping thêm port 8090 (vì service cấu hình chạy ở port 8090)
+
+<p align="center">
+  <img src="/static/img/posts/aws-cicd/ecs_6.png" alt="Alt text" title="image" />
+</p>
+
+Ở phần biến môi trường (Environment variables) -> cấu hình để đọc các thông tin database từ Secrets Manager ở mục 3.2
+
+<p align="center">
+  <img src="/static/img/posts/aws-cicd/ecs_6_1.png" alt="Alt text" title="image" />
+</p>
+
+Vậy là tạo xong Task definition.
+
+<p align="center">
+  <img src="/static/img/posts/aws-cicd/ecs_7.png" alt="Alt text" title="image" />
+</p>
+
+=> Tạo Cluster:
+
+<p align="center">
+  <img src="/static/img/posts/aws-cicd/ecs_8.png" alt="Alt text" title="image" />
+</p>
+
+<p align="center">
+  <img src="/static/img/posts/aws-cicd/ecs_9.png" alt="Alt text" title="image" />
+</p>
+
+=> Tạo Service:
+
+<p align="center">
+  <img src="/static/img/posts/aws-cicd/ecs_10.png" alt="Alt text" title="image" />
+</p>
+
+<p align="center">
+  <img src="/static/img/posts/aws-cicd/ecs_11.png" alt="Alt text" title="image" />
+</p>
+
+<p align="center">
+  <img src="/static/img/posts/aws-cicd/ecs_12.png" alt="Alt text" title="image" />
+</p>
+
+<p align="center">
+  <img src="/static/img/posts/aws-cicd/ecs_13.png" alt="Alt text" title="image" />
+</p>
+
+<p align="center">
+  <img src="/static/img/posts/aws-cicd/ecs_14.png" alt="Alt text" title="image" />
+</p>
+
+### 3.6 - Dựng CodePipeline
+
+<p align="center">
+  <img src="/static/img/posts/aws-cicd/pl_1.png" alt="Alt text" title="image" />
+</p>
+
+<p align="center">
+  <img src="/static/img/posts/aws-cicd/pl_1_1.png" alt="Alt text" title="image" />
+</p>
+
+<p align="center">
+  <img src="/static/img/posts/aws-cicd/pl_2.png" alt="Alt text" title="image" />
+</p>
+
+<p align="center">
+  <img src="/static/img/posts/aws-cicd/pl_3.png" alt="Alt text" title="image" />
+</p>
+
+<p align="center">
+  <img src="/static/img/posts/aws-cicd/pl_3_1.png" alt="Alt text" title="image" />
+</p>
+
+<p align="center">
+  <img src="/static/img/posts/aws-cicd/pl_4.png" alt="Alt text" title="image" />
+</p>
+
+<p align="center">
+  <img src="/static/img/posts/aws-cicd/pl_5.png" alt="Alt text" title="image" />
+</p>
+
+<p align="center">
+  <img src="/static/img/posts/aws-cicd/pl_6.png" alt="Alt text" title="image" />
+</p>
+
+-> Pipeline build Thành Công
+
+<p align="center">
+  <img src="/static/img/posts/aws-cicd/pl_7.png" alt="Alt text" title="image" />
+</p>
+
+-> Pipeline build lại khi có code update.
+
+<p align="center">
+  <img src="/static/img/posts/aws-cicd/pl_8.png" alt="Alt text" title="image" />
+</p>
+
+# 4. - Testing
+
+Sau khi deploy thành công, các bạn truy cập vào địa chỉ: `http://<public IP>/swagger-ui/index.html`. Trong đó, public IP chính là địa chỉ IP public được tạo ra sau khi chúng tạo task definition thành công.
+
+<p align="center">
+  <img src="/static/img/posts/aws-cicd/testing_1.png" alt="Alt text" title="image" />
+</p>
+
+# 5. - Tổng Kết
+
+Vậy là trong bài viết này mình đã cùng anh em tìm hiểu cách để deloy một ứng dụng Spring Boot thực tế có kết nối đến database lên môi trường Dcoker container thông qua AWS ECS, ECR. Đồng thời tự động hoá việc build và deploy code sử dụng AWS CodeBuild, CodePipeline
+
+Hẹn gặp lại anh em trong các bài viết tiếp theo. Happy Coding!
