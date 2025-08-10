@@ -12,6 +12,12 @@ const projectsData = [
     href: 'https://github.com/canhnd15/BlogMicroservice',
   },
   {
+    title: 'Easy Quizzer',
+    description: `A quiz application built with React.js, TailwindCss, Supabase, Cursor AI to allow take free quizzes such as AWS, GCP, Azure...`,
+    imgSrc: '/static/img/projects/easyquizer.png',
+    href: 'https://easyquizer.vercel.app/',
+  },
+  {
     title: 'E-Wedding',
     description: `A management application built with React.js, Styled-Component, React Query, Supabase for managing guest information, invitation cards, invitation money, etc.. of a wedding.`,
     imgSrc: '/static/img/projects/ewedding-card.png',

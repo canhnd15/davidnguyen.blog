@@ -1,0 +1,99 @@
+---
+title: '[AI] - Mọi thứ chỉ còn là Ý Tưởng - Coding cứ để AI lo?'
+date: '2025-08-08'
+lastmod: '2024-08-08'
+tags: ['AI', 'Cursor']
+draft: false
+summary: Easy Quizzer là một ứng dụng quiz miễn phí được xây dựng hoàn toàn với sự hỗ trợ của AI, nhằm giúp người dùng luyện thi AWS, GCP, Azure một cách dễ dàng. Bài viết chia sẻ từ ý tưởng, công nghệ sử dụng, quá trình coding – fix bug, đến nhận xét ưu nhược điểm và kinh nghiệm triển khai.
+images: ['/static/img/cover/posts/easyquizzer.png']
+layout: PostLayout
+---
+
+<TOCInline toc={props.toc} asDisclosure toHeading={3} />
+
+# 1. - Ý tưởng
+
+<p align="center">
+  <img src="/static/img/posts/easyquiz/image_1.png" alt="Alt text" title="image" />
+</p>
+<p align="center">
+  Nơi chia sẻ các bài quiz miễn phí - [Easy Quizer](https://easyquizer.vercel.app/)
+</p>
+
+AI đã quá mạnh, đó là điều mà chúng ta không thể phủ nhận ở thời điểm hiện tại. Nhưng liệu AI có thể thay thế lập trình viên? Hay chỉ dừng lại là một công cụ hỗ trợ?
+
+Mình khá tò mò và quyết định thử làm một cái gì đó hoàn toàn bằng AI xem sao? Và thế là ý tưởng về [Easy Quizzer](https://easyquizer.vercel.app/) ra đời, [Easy Quizzer](https://easyquizer.vercel.app/) là một hệ thống làm quiz miễn phí, mình là sẽ upload các bài quiz liên quan đến các kỳ thi AWS, GCP, Azure để các bạn có thêm kênh luyện tập và hỗ trợ học tốt hơn.
+
+Các bạn có thể xem demo app tại đây: [DEMO](https://drive.google.com/file/d/1ASAMqlynF5tqmrzZR3tHZc9FBl-2YtGX/preview)
+
+# 2. - Công cụ, công nghệ:
+
+### 2.1 - Công cụ:
+
+- Khởi tạo giao diện và lên ý tưởng: [Lovable](https://lovable.dev/)
+- Code và fix bugs: [Cursor](https://cursor.com/)
+
+Đây là hai công cụ tích hơp AI mình sử dụng để "code", nói là code nhưng thật ra chủ yếu là mình prompt cho AI code và mình chỉ fix những lỗi mà AI mãi không fix được.
+
+### 2.2 - Công nghệ:
+
+- Frontend: React.js, Tailwind CSS để xây UI nhanh, responsive.
+
+- Backend: API serverless viết bằng Node.js và tích hợp Supabase để lưu trữ dữ liệu quiz, quản lý người dùng.
+
+- Database: PostgreSQL (Supabase) để lưu quiz, câu hỏi, kết quả.
+
+- Authentication: Supabase Auth (Google Login, Email/Password).
+
+- Deployment: Vercel – triển khai nhanh chóng, tự động build.
+
+Mục tiêu của mình là để AI làm gần như toàn bộ, việc của mình là nghĩ ý tưởng và tính năng cho ứng dụng nên có thể thấy các công nghệ ở đây đều là "đồ ăn sẵn", dễ settup, dễ làm việc.
+
+# 3. - Coding và fix bugs
+
+- Đầu tiên là ý tưởng như mình trình bày ở phần đâu, tiếp theo là hỏi AI và fix bugs khi có lỗi.
+
+Mình có thiết kế database không?
+
+=> Không!
+
+- Mình liệt kê tính năng, mô tả các điều kiện, quan hệ giữa các thực thể và để cho AI thiết kế. Nhưng mình vẫn phải nắm được có bảng nào, quan hệ ra sao để fix bug khi cần.
+
+Mình có code UI không?
+
+=> Không!
+
+- Mình là dev backend, không chuyên frontend nhưng mình biết khi nào cần hoặc button, modal nào bugs để bảo AI fix cho nhanh, thay vì hỏi chung chung theo chức năng.
+
+Fix bug kiểu gì?
+
+- Thật sự là mình lười đọc code do AI viết, nên nếu có bugs thì để tự fix là khó. Nhưng AI đủ thông mình để tìm bugs và fix nếu các bạn đưa đủ context và mô tả bug cho nó.
+
+<p align="center">
+  <img src="/static/img/posts/easyquiz/image_2.png" alt="Alt text" title="image" />
+</p>
+
+# 4. - Nhận xét, rút kinh nghiệm
+
+### Ưu điểm:
+
+- Mình thấy sướng nhất là việc AI code UI rất là "ngon" với một đứa chuyên backend như mình. Không cần phải quá lo việc css, responsive chỉ cần tập trung vào ý tưởng mà vẫn có thể làm nên thứ gì đó.
+- Vừa code mình có thể làm việc khác (không nên 😁) nhưng rất là chill. Có lúc mình code vừa call video với người yêu mà vẫn xong tính năng.
+- AI (của Cursor) thực sự rất là thông mình khi nó luôn đưa ra solution cho mình trước, nhiều lúc mình không nghĩ con AI đỉnh đến vậy.
+- Rút ngắn thời gian dev, ví dụ một màn login mà cho mình làm có khi mất 1,2 ngày vì không chuyên FE, thế mà hỏi AI phút mốt là đẹp ngay.
+
+### Nhược điểm
+
+- AI đôi khi "cầm đèn chạy trước ô tô" nếu chúng ta hỏi không rõ ý.
+- AI chưa làm tốt vấn đề bảo mật và hiệu năng vì theo mình thấy, mặc dù AI (của Cursor) mình dùng lần này (bản free, nhiều modal khác nhau) thì nó vẫn luôn "nỗ lực tối thiểu" để đưa ra giải pháp -> nhiều khi giải pháp thiếu tính bảo mật, hoặc hiệu năng kém. Ví dụ, lấy danh sách quiz thì cứ mặc định lấy hết, không quan tâm user có quyền không.
+- AI khiến mình lười sửa code vì mình có code đâu mà hiểu -> lười sửa và cứ đi hỏi nó -> một vòng luẩn quẩn, thành ra có những cái bugs mình mãi mới fix được.
+
+# 5. - Tổng Kết
+
+Với Easy Quizzer, mình thấy chúng ta có thể tạo một ứng dụng hoàn chỉnh gần như hoàn toàn nhờ AI, nhưng chỉ ở mức độ demo, nếu muốn ứng dụng có khả năng mở rộng, sức chịu tải thì vẫn phải do yếu tố con người.
+
+=> Tóm lại là vẫn cần con người để định hướng, kiểm tra và tinh chỉnh.
+
+Hẹn gặp lại các bạn ở những dự án tiếp theo – Happy Coding! 🚀
+
+🔗 Trải nghiệm Easy Quizzer ngay: https://easyquizer.vercel.app/
