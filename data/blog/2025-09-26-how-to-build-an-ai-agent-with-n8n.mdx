@@ -1,0 +1,187 @@
+---
+title: '[AI] - Xây dựng một Automation Workflow để viết code, viết test, review code với AI Agent và N8N'
+date: '2025-09-26'
+lastmod: '2024-09-26'
+tags: ['AI', 'N8N', 'Workflow']
+draft: false
+summary: Trong bài viết này, mình sẽ cùng anh em tìm hiểu cách xây dựng một workflow tự động để hỗ trợ viết code, sinh test và review code với sự kết hợp giữa AI Agent và N8N. Đây là một quy trình giúp anh em tận dụng sức mạnh của AI trong phát triển phần mềm, tự động hóa những bước lặp lại, đồng thời tối ưu hóa hiệu suất và chất lượng code trong dự án.
+images: ['/static/img/cover/posts/easyquizzer.png']
+layout: PostLayout
+---
+
+<TOCInline toc={props.toc} asDisclosure toHeading={3} />
+
+# 1. - Đặt vấn đề
+
+<p align="center">
+  <img src="/static/img/posts/n8n/result.jpg" alt="Alt text" title="image" />
+</p>
+<p align="center">Workflow sau khi hoàn thiện với các flow của QA, Dev</p>
+
+**QUESTION**:
+
+- AI viết code có ok không? Với những chức năng nhỏ hoặc sửa code thì mình nghĩ khá ok nhưng nếu cả một module lớn thì không chắc.
+
+- AI review code liệu có hiệu quả không? Có bằng mấy ông senior review không? Mình nghĩ là vừa có vừa không, vậy tại sao? Vì AI khó mà nắm hết được business logic, nhưng mấy lỗi về syntax, convention, tối ưu logic code thì AI làm khá tốt.
+
+- AI viết được test không? Viết ngon ý chứ, nhưng anh em phải cho nó cả context nhé, chứ cho thiếu viết sai sửa đâm ra mệt hơn.
+
+Nói chung là, thời đại AI - có thể AI nó chưa thay thế hoàn toàn được nhưng tương lai gần mình nghĩ nó sẽ giúp ích anh em dev khá nhiều trong việc viết code, review code để anh em có thêm thời gian làm mấy cái khó hơn.
+
+Với sự giúp đỡ từ các công cụ automation workflow, nhiều anh em non tech có thể hoàn toàn tạo ra các AI Agent để hỗ trợ tự động hoá công việc, tối ưu quy trình và hiệu suất.
+
+=> Ở bài viết này, mình sẽ cùng anh em (dev) xây dựng một AI Agent workflow hỗ trợ việc review code, viết unit test với sự hỗ trợ từ [N8N](https://n8n.io/).
+
+# 2. - Công cụ, công nghệ:
+
+### 2.1 - AI Agent
+
+Một AI Agent được tạo thành từ những "bộ phận" gì? Thực tế mình có thể sẽ nhiều hơn nhưng nếu liên hệ một chút với thực tế mình thấy AI Agent sẽ có:
+
+- Input/Output: AI Agent thì cũng phải nhận lệnh từ đâu đó (Input) và trả về kết quả nào đó (Output). Chúng ta có thể định nghĩa input và output cho một AI Agent với nhiều kiểu dữ liệu khác nhau.
+
+- Bộ não (brain): Là một LLM (Large Language Model) hiểu đơn giản là một mô hình AI được huấn luyện trên tập dữ liệu rất lớn, có khả năng tự học hỏi với hàng trăm tỷ tham số.
+
+- Bộ nhớ (memory): Học mà không nhớ thì phải học lại, AI Agent cũng vậy - một bộ nhớ sẽ giúp Agent đó lưu trữ được context, data để đưa ra câu trả lời một cách phù hợp nhất.
+
+- Chân tay: (tools): Tools giống như chân tay giúp Agent giao tiếp với các tools khác hay đơn giản là với Agent khác để thu thập, xử lý dữ liệu khi cần thiết.
+
+<p align="center">
+  <img src="/static/img/posts/n8n/agent.png" alt="Alt text" title="image" />
+</p>
+
+### 2.2 - [N8N](https://n8n.io/)
+
+N8N là một nền tảng automation workflow mã nguồn mở, giúp anh em dễ dàng tạo workflow để kết nối các ứng dụng, dịch vụ và API mà không cần phải viết quá nhiều code (low code).
+
+<p align="center">
+  <img src="/static/img/posts/n8n/image_1.png" alt="Alt text" title="image" />
+</p>
+
+Một vài điểm hay ho của n8n mà anh em nên biết:
+
+- **Open source**: Toàn bộ source code public trên [GitHub của N8N](https://github.com/n8n-io/n8n) -> anh em có thể dễ dàng tìm hiểu hoặc đóng góp.
+
+- **Self host**: Có thể deploy ngay trên hạ tầng của công ty, tổ chức -> dữ liệu được kiểm soát, bảo mật 100%.
+
+- **Sự linh hoạt**: Có thể tự tạo custom node để kết nối thêm với các services.
+
+- **Hợp với anh em dev**: Các node function viết bằng `JavaScript/TypeScript`, quen thuộc với hầu hết anh em lập trình.
+
+- **Hỗ trợ các AI Agent node**: Có sẵn khả năng custom để tạo ra các AI Agent để workflow thông minh hơn.
+
+**Cài đặt N8N thông qua Docker compose**
+
+```yml
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: n8n_postgres
+    restart: unless-stopped
+    ports:
+      - '5433:5432'
+    environment:
+      POSTGRES_USER: n8n
+      POSTGRES_PASSWORD: n8n_password
+      POSTGRES_DB: n8n
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  n8n:
+    image: n8nio/n8n
+    container_name: n8n
+    restart: unless-stopped
+    ports:
+      - '5678:5678'
+    environment:
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=postgres
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=n8n
+      - DB_POSTGRESDB_USER=n8n
+      - DB_POSTGRESDB_PASSWORD=n8n_password
+      - GENERIC_TIMEZONE=Europe/Berlin
+      - TZ=Europe/Berlin
+      - WEBHOOK_URL=https://8ba5b80f60fd.ngrok-free.app
+
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=admin
+      - N8N_BASIC_AUTH_PASSWORD=supersecret123
+
+      - N8N_USER_MANAGEMENT_DISABLED=true
+    volumes:
+      - n8n_data:/home/node/.n8n
+    depends_on:
+      - postgres
+
+volumes:
+  n8n_data:
+  postgres_data:
+```
+
+N8N có thể self-host thông qua Docker, bên trên là file Docker compose cho anh em nào muốn chạy N8N thông qua Docker. Lưu ý, anh em nào chạy local thì có thể sử dụng [ngrok](https://ngrok.com/) để cấu hình `WEBHOOK_URL` giúp N8N giao tiếp với các service thông qua internet.
+
+### 2.3 - Các tools khác.
+
+- GitHub/GitLab – lưu trữ repo và trigger pipeline.
+- Docker, Docker compose, Ngrok
+
+# 3. - Flow tổng quan
+
+<p align="center">
+  <img src="/static/img/posts/n8n/image_2.png" alt="Alt text" title="image" />
+</p>
+
+**Bước 1**: Developer code một feature (feature-01)​
+
+**Bước 2**: Developer tạo một MR (feature-01 -> develop)​
+
+**Bước 3**: AI Agent tự động đọc và review các file change từ MR đó (dựa trên prompt được định nghĩa)​
+
+    - 3.1: Reviewer Agent 1: Đưa ra một review tổng quát cho toàn bộ MR -> thông báo cho assigee​
+    - 3.2: Reviewer Agent 2: Đưa ra comment trên từng line (hoặc block) code -> thông báo cho assigee​
+
+**Bước 4**: Generator Agent 3 - viết unit tests​
+
+**Bước 5**: Merge code và deploy lên server -> báo cho team QA test.​
+
+# 4. - Demo Workflow
+
+<div style={{ position: 'relative', paddingBottom: '56.25%', height: 0 }}>
+  <iframe
+    src="https://www.youtube.com/embed/iXvjbAN3dZc"
+    title="N8N Demo"
+    style={{
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      width: '100%',
+      height: '100%',
+    }}
+    frameBorder="0"
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+    referrerPolicy="strict-origin-when-cross-origin"
+    allowFullScreen
+  />
+</div>
+
+Demo
+
+# 5. - Kết luận & tổng kết
+
+### Ưu / nhược điểm khi dùng AI Agent
+
+| Ưu điểm                                                                                | Nhược điểm                                                            |
+| -------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| Tiết kiệm thời gian cho các task lặp lại (viết test, review syntax, check convention). | Không hiểu sâu business logic, dễ bỏ sót lỗi liên quan đến nghiệp vụ. |
+| Nâng cao chất lượng code ở mức cơ bản (linting, best practice).                        | Có thể sinh code sai hoặc chưa tối ưu, cần dev kiểm tra lại.          |
+| Hỗ trợ review nhanh, giúp dev junior học hỏi thêm.                                     | Prompt không rõ ràng → output không dùng được.                        |
+| Dễ tích hợp vào workflow tự động với N8N.                                              | Cần tài nguyên (API key, server, chi phí tính toán).                  |
+
+Qua bài viết này, anh em thấy rằng việc kết hợp AI Agent với N8N có thể giúp tự động hóa khá nhiều khâu trong quy trình phát triển phần mềm như viết code, sinh test hay review code.
+
+AI chưa thể thay thế hoàn toàn con người, nhất là khi liên quan đến business logic phức tạp, nhưng với những tác vụ lặp lại hoặc mang tính quy chuẩn thì AI làm khá ổn.
+
+Hẹn gặp lại các bạn ở những dự án tiếp theo – Happy Coding! 🚀
