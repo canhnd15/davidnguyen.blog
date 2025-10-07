@@ -1,0 +1,327 @@
+---
+title: 'RSQL: Làm sao để REST API “hiểu” các điều kiện FILTER một cách linh hoạt'
+date: '2025-10-07'
+lastmod: '2024-10-07'
+tags: ['Java', 'Rsql', 'Angular']
+draft: false
+summary: Trong bài viết này, mình sẽ cùng anh em tìm hiểu về RSQL (RESTful Query Language), cách nó hoạt động, ưu điểm, thách thức, và gợi ý mở rộng nếu anh em muốn áp dụng vào dự án thực tế.
+images: ['/static/img/cover/posts/rsql.jpg']
+layout: PostLayout
+---
+
+<TOCInline toc={props.toc} asDisclosure toHeading={3} />
+
+# 1. Tại sao cần RSQL?
+
+Thông thường, anh em có API như sau:
+
+```javascript
+GET /users?name=Alice&ageGt=20&active=true
+```
+
+Controller nhận từng parameter, nếu tham số nào có thì thêm điều kiện vào query. Mọi thứ ổn nếu số điều kiện ít, cấu trúc đơn giản. Nhưng:
+
+- Khi client muốn lọc theo nhiều điều kiện khác nhau (AND, OR, in, between, >, < …).
+
+- Lọc theo trường nào đó trong entity (ví dụ address.city).
+
+- Và không biết trước trường nào sẽ được query
+
+Thì phải là sao?
+
+Đó là lúc nghĩ đến RSQL (RESTful Query Language): client gửi một chuỗi filter (ví dụ `name==Alice;age>20;address.city==Hanoi`) và backend tự dịch nó thành điều kiện truy vấn mà không cần biết trước tham số được truyền xuống là gì.
+
+Với RSQL:
+
+- Chỉ cần một endpoint linh hoạt duy nhất.
+
+- Client có thể build các bộ filter phức tạp.
+
+- Backend generic: chỉ cần logic parse + chuyển thành Specification / Predicate.
+
+**Note**: Mình có một repo git demo [ở đây](https://github.com/canhnd15/rsql-java-angular-demo), anh em có thể tham khảo source code.
+
+# 2. - Làm sao apply RSQL vào dự án thực tế.
+
+### 2.1 - Thư viện
+
+```xml
+<!-- RSQL parser -->
+<dependency>
+	<groupId>cz.jirutka</groupId>
+	<artifactId>rsql-parser</artifactId>
+	<version>2.1.0</version>
+</dependency>
+```
+
+```xml
+<!-- Spring Data JPA Specification (recommended) -->
+<dependency>
+	<groupId>io.github.perplexhub</groupId>
+	<artifactId>rsql-jpa-spring-boot-starter</artifactId>
+	<version>6.10.0</version>
+</dependency>
+```
+
+**Note**: Nếu anh em muốn tự kiểm soát mọi thứ (custom operator, type conversion) thì cần `rsql-parser` và tự implement visitor. Nếu muốn nhanh, dùng `rsql-jpa-specification` vì nó cung cấp `RSQLSupport.toSpecification(...)` và nhiều `operator` bổ sung.
+
+=> Trong bài viết này, mình sẽ dùng `rsql-jpa-specification` để thuận tiện cho việc phát triển.
+
+### 2.2 - Repository
+
+- Để sử dụng `Specification` trong Spring Data JPA, repository phải implement `JpaSpecificationExecutor<T>`:
+
+```java
+@Repository
+public interface OrderRepository extends JpaRepository<Order, UUID>, JpaSpecificationExecutor<Order> {
+}
+```
+
+```java
+@Repository
+public interface OrderDetailRepository extends JpaRepository<OrderDetail, UUID>, JpaSpecificationExecutor<OrderDetail> {
+}
+```
+
+### 2.3 - Cấu hình / Whitelist fields (bảo mật)
+
+- Khi sử dụng RSQL có một lưu ý bảo mật rất `QUAN TRỌNG` mà anh em nên lưu ý đó là SQL Injection, anh em có thể đọc thêm [TẠI ĐÂY](https://owasp.org/www-community/attacks/RSQL_Injection). Vậy làm sao để phòng tránh?
+
+- Có những trường dữ liệu không được phép query, expose ra ngoài (`password`, `token`...). Anh em nên tạo một whilelist fields (một danh sách các trường cho phép) được filter hoặc sort khi sử dụng RQSL.
+
+```java
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.FIELD)
+public @interface RSQLProperty {
+
+    boolean filterable() default true;  // Cho phép lọc
+    boolean sortable() default true;   // Cho phép sắp xếp
+    String propertyPathMapping() default ""; // Mapping tới field trong entity (nếu khác tên)
+}
+```
+
+=> Mình tạo một annotation để đánh dấu xem trường nào được phép filter, sort hoặc mapping lại theo tên. Ví dụ:
+
+```java
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class OrderDto {
+
+    @RSQLProperty(sortable = false)
+    private UUID id;
+
+    @RSQLProperty(sortable = false)
+    private String orderNumber;
+
+    @RSQLProperty
+    private String customerName;
+
+    @RSQLProperty
+    private String customerEmail;
+
+    @RSQLProperty
+    private Double totalAmount;
+
+    @RSQLProperty
+    private Order.OrderStatus status;
+
+    @RSQLProperty
+    private LocalDateTime createdAt;
+
+    @RSQLProperty
+    private LocalDateTime updatedAt;
+
+    private List<OrderDetailDto> orderDetails;
+
+    public static OrderDto of(Order order) {
+        return OrderDto.builder()
+                .id(order.getId())
+                .orderNumber(order.getOrderNumber())
+                .customerName(order.getCustomerName())
+                .customerEmail(order.getCustomerEmail())
+                .totalAmount(order.getTotalAmount())
+                .status(order.getStatus())
+                .createdAt(order.getCreatedAt())
+                .updatedAt(order.getUpdatedAt())
+                .build();
+    }
+}
+```
+
+=> Check và tạo cấu hình whitelist
+
+Do các field đã được đánh annotation nên mình có thể dùng Java reflection để check các field được phép filter/sort thông qua method `RSQLPropertyConfigurations.fromClass(OrderDto.class);`
+
+Khi chạy, hàm `fromClass()` sẽ:
+
+- Duyệt tất cả các field trong `OrderDto`.
+
+- Tìm các field có `@RSQLProperty`.
+
+- Sinh ra danh sách `RSQLPropertyConfiguration` tương ứng, lưu các flag `filterable`, `sortable`, và `propertyPathMapping`.
+
+Kết quả là một danh sách các field hợp lệ, dùng để kiểm tra trước khi build query thật.
+
+=> Validate filter/sort trước khi query DB
+
+Trước khi thực thi, mỗi request RSQL sẽ được kiểm tra whitelist:
+
+```java
+public <U> Specification<U> getValidatedSpec(String filter, String sort) {
+    validate(filter, sort); // Kiểm tra field có nằm trong whitelist không
+
+    var filterSpec = RSQLJPASupport.toSpecification(filter, propertyPathMapper());
+    var sortSpec = RSQLJPASupport.toSort(sort, propertyPathMapper());
+    return filterSpec.and(sortSpec);
+}
+```
+
+Nếu người dùng cố gắng query một trường không hợp lệ, ví dụ:
+
+```bash
+/filter=password==true
+```
+
+Sẽ nhận lỗi:
+
+```python
+The requested filter property secret is not in whitelist!
+```
+
+Từ đó giúp:
+
+- Bảo mật cho entity (chỉ expose field được cho phép).
+
+- Tránh SQL injection thông qua input không kiểm soát.
+
+- Giữ code mở rộng linh hoạt: chỉ cần thêm `@RSQLProperty` là field tự động được bật query.
+
+### 2.4 - Cách tạo `Specification` từ RSQL
+
+=> 2.4.1 - Dùng rsql-jpa-specification (perplexhub) — nhanh và tiện
+
+Repo Perplexhub cung cấp các helper như `RSQLSupport.toSpecification(filter)`. Ví dụ:
+
+```java
+String filter = "active==true;age>20;address.city==Hanoi";
+Specification<User> spec = RSQLSupport.toSpecification(filter);
+Page<User> page = userRepository.findAll(spec, PageRequest.of(0,20));
+```
+
+Ưu điểm: không cần viết visitor, hỗ trợ nhiều operator (like, ilike, between, in, nk, v.v.), hỗ trợ joins, case-insensitive.
+
+=> 2.4.2 - Tự viết Visitor → Specification (khi cần custom)
+
+Các bước:
+
+```java
+Node root = new RSQLParser().parse(filter);
+Specification<T> spec = root.accept(new RsqlVisitor<T>(clazz, allowedFields));
+repository.findAll(spec, pageable)
+```
+
+Để triển khai theo hướng này thì anh sẽ sẽ phải tự viết khá nhiều, chỉ phù hợp khi muốn custom một điều kiện filter/sort nào quá phức tạp.
+
+### 2.5 - Controller API (REST)
+
+Sau khi đã cấu hình whitelist và xử lý logic RSQL trong tầng service, bước cuối cùng là expose một REST API cho client có thể gửi request filter/sort linh hoạt.
+
+```java
+@RequiredArgsConstructor
+@RestController
+public class OrderController {
+    private final OrderService orderService;
+
+    @GetMapping(FrontendApi.PAYROLL_ORDER)
+    public ResponseEntity<ApiResponseDto<?>> getAll(
+            @RequestParam(value = "filters", required = false) String filters,
+            @RequestParam(value = "sorts", required = false) String sorts,
+            @RequestParam(value = "includeDetails", required = false, defaultValue = "false") boolean includeDetails,
+            Pageable pageable
+    ) {
+        ApiResponseDto<?> resp = ApiResponseDto.builder()
+                .data(orderService.getAll(filters, sorts, pageable, includeDetails))
+                .status(ResponseStatus.SUCCESS.name())
+                .message("Get order list successfully!")
+                .build();
+        return ResponseEntity.ok(resp);
+    }
+}
+```
+
+- Client gọi API với query params, ví dụ:
+
+```python
+GET /api/orders?filters=status==COMPLETED;amount>1000&sorts=-createdAt&page=0&size=10
+```
+
+- Controller nhận request và truyền xuống `OrderService`:
+
+```java
+@Service
+@RequiredArgsConstructor
+public class OrderService {
+    private final OrderRepository orderRepository;
+
+    @Transactional(readOnly = true)
+    public Page<OrderDto> getAll(
+            String filters,
+            String sorts,
+            Pageable pageable,
+            boolean includeDetails
+    ) {
+        Specification<Order> finalSpec = SpecificationBuilder.build(filters,
+                FieldMapperUtil.getFieldMap(OrderDto.class, Order.class));
+        Pageable customPageable = PageableUtil.withSortingAndFieldMapping(pageable, sorts, OrderDto.class, Order.class);
+
+        Page<Order> page = orderRepository.findAll(finalSpec, customPageable);
+
+        if (!includeDetails) {
+            return page.map(OrderDto::of);
+        }
+
+        return page.map(order -> {
+            OrderDto dto = OrderDto.of(order);
+            if (order.getOrderDetails() != null) {
+                dto.setOrderDetails(order.getOrderDetails().stream()
+                        .map(com.demo.rsql.dto.OrderDetailDto::of)
+                        .toList());
+            }
+            return dto;
+        });
+    }
+}
+```
+
+### 2.6 - Xử lý kiểu dữ liệu đặc thù (dates, enums, booleans)
+
+- `rsql-parser` trả về args là String — anh em phải convert sang Java type trước khi so sánh.
+- Lấy `path.getJavaType()` (từ JPA Path) để biết kiểu đích.
+
+Ví dụ:
+
+- `LocalDate: LocalDate.parse(value, DateTimeFormatter.ISO_LOCAL_DATE)` (nên hỗ trợ nhiều format).
+- Enum: `Enum.valueOf((Class<Enum>) targetType, value)`.
+- Boolean: `Boolean.parseBoolean(value)`.
+
+Nếu convert thất bại, trả 400 với thông báo rõ ràng.
+
+# 3. - Source Code
+
+- Mình có code demo về việc sử dụng RSQL trong project Spring Boot (backend) và Angular (Frontend). Anh em có thể tham khảo tại đây:
+
+[https://github.com/canhnd15/rsql-java-angular-demo](https://github.com/canhnd15/rsql-java-angular-demo)
+
+# 4. - Kết luận & tổng kết
+
+Vậy là trong bài viết này, mình đã cùng anh em tìm hiểu về RSQL, có thể với một số anh em chưa sử dụng nhiều nhưng RSQL thực sự phù hợp cho bài toán cần sự linh hoạt trong việc filter dữ liêu.
+
+Anh em có thể tham khảo một số bài viết cùng chủ đề của mình nhé:
+
+- [https://davidnguyenblog.vercel.app/blog/8-ways-to-query-data-from-database-in-spring-data-jpa](https://davidnguyenblog.vercel.app/blog/8-ways-to-query-data-from-database-in-spring-data-jpa)
+
+- [https://davidnguyenblog.vercel.app/blog/jpa-criteria-queries](https://davidnguyenblog.vercel.app/blog/jpa-criteria-queries)
+
+Hẹn gặp lại anh em ở những dự án tiếp theo – Happy Coding! 🚀
