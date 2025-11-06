@@ -1,5 +1,11 @@
 const projectsData = [
   {
+    title: 'Trade Tracker',
+    description: `Stock Watcher is a full‑stack trading data tracker built with Spring Boot (Java 21), React (Vite + TypeScript), and PostgreSQL.`,
+    imgSrc: '/static/img/projects/trade-tracker.png',
+    href: 'https://github.com/canhnd15/stock-watcher',
+  },
+  {
     title: 'E-commerce Microservice',
     description: `A e-commerce application built with microservices architecture (Java, React.js, Spring Boot, Docker, Api Gateway, PostgreSQL, MongoDB, Kafka, Redis, Zipkin...)`,
     imgSrc: '/static/img/projects/e-commerce.png',
