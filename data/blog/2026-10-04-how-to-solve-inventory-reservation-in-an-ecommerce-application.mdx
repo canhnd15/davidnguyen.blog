@@ -43,7 +43,7 @@ Nghe đơn giản, nhưng với hệ thống đông người dùng, mình phải
 
 => Trong bài viết này (thuộc series **Design an e-commerce system**), mình sẽ cùng anh em đi từ cách làm cơ bản nhất đến nâng cao, mỗi cách đều có code Java & Spring Boot, và cuối bài là bảng so sánh để anh em chọn. Bài này dành cho anh em từ mức beginner đến intermediate: biết Spring Boot và JPA cơ bản là đủ.
 
-**Note**: Mình chưa có repo demo cho bài này, nên code bên dưới là các đoạn trích đủ để anh em copy và chạy thử trong project của mình.
+**Note**: Code bên dưới là các đoạn trích đủ để anh em copy và chạy thử trong project của mình. Anh em cũng có thể chạy thẳng project demo đầy đủ ở phần Source Code cuối bài.
 
 # 2. - Chuẩn bị: schema và entity
 
@@ -753,7 +753,13 @@ Kết quả mong đợi (mình chưa chạy test này, đây là suy ra từ log
 
 => Cách 6 không đứng một mình mà là lớp bổ sung vòng đời lên trên cách 2 hoặc cách 5, nên cột "Chịu tải cao" của nó phụ thuộc vào tầng trừ kho phía dưới.
 
-# 11. - Kết luận & tổng kết
+# 11. - Source Code
+
+- Mình có code demo đầy đủ cho cả 6 cách trong bài, kèm test bắn 200 request và Redis Lua script. Anh em có thể tham khảo tại đây:
+
+[https://github.com/canhnd15/blog-demos/tree/main/how-to-solve-inventory-reservation-in-an-ecommerce-application](https://github.com/canhnd15/blog-demos/tree/main/how-to-solve-inventory-reservation-in-an-ecommerce-application)
+
+# 12. - Kết luận & tổng kết
 
 Quay lại câu hỏi đầu bài: làm sao để 20.000 người tranh 100 sản phẩm mà không bán lố?
 

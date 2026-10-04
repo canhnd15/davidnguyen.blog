@@ -31,7 +31,8 @@ I'd like to write a new post about Inventory Reservation in an e-commerce applic
 -
 
 ## Source repo
-<!-- GitHub demo URL, or "none" -->
+<!-- A GitHub demo URL, "generate" (writer creates runnable demo code and pushes it to github.com/canhnd15/blog-demos), or "none" -->
+generate -> https://github.com/canhnd15/blog-demos/tree/main/how-to-solve-inventory-reservation-in-an-ecommerce-application
 
 ## Must include
 -
