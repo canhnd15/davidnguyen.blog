@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" role="img" aria-label="Optimistic lock: hai request cùng đọc version 5, request đến sau bị 0 dòng ảnh hưởng và phải retry">
+  <style>
+    text{font-family:Helvetica,Arial,sans-serif;font-size:15px;fill:#1E293B}
+    .s{font-size:14px;fill:#475569}
+    .m{text-anchor:middle}
+    .bx{fill:#DBEAFE;stroke:#2563EB;stroke-width:2}
+    .ok{fill:#DCFCE7;stroke:#16A34A;stroke-width:2}
+    .no{fill:#FEE2E2;stroke:#DC2626;stroke-width:2}
+    .wn{fill:#FEF3C7;stroke:#D97706;stroke-width:2}
+    .ll{stroke:#94A3B8;stroke-width:1.5;stroke-dasharray:6 5}
+    .ar{stroke:#64748B;stroke-width:2;fill:none;marker-end:url(#a)}
+  </style>
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#64748B"/></marker></defs>
+  <rect width="800" height="500" fill="#F8FAFC"/>
+  <rect x="100" y="20" width="220" height="40" rx="8" class="bx"/><text x="210" y="46" class="m">Request A</text>
+  <rect x="480" y="20" width="220" height="40" rx="8" class="bx"/><text x="590" y="46" class="m">Request B</text>
+  <line x1="210" y1="60" x2="210" y2="480" class="ll"/>
+  <line x1="590" y1="60" x2="590" y2="480" class="ll"/>
+
+  <rect x="90" y="80" width="240" height="40" rx="8" class="gr" style="fill:#F1F5F9;stroke:#94A3B8"/><text x="210" y="105" class="m s">đọc: available = 1, version = 5</text>
+  <rect x="470" y="80" width="240" height="40" rx="8" style="fill:#F1F5F9;stroke:#94A3B8;stroke-width:1.5"/><text x="590" y="105" class="m s">đọc: available = 1, version = 5</text>
+
+  <rect x="70" y="160" width="280" height="56" rx="8" class="ok"/>
+  <text x="210" y="184" class="m s">UPDATE ... SET available = 0, version = 6</text>
+  <text x="210" y="204" class="m s">WHERE sku = ? AND version = 5</text>
+  <rect x="70" y="228" width="280" height="36" rx="8" class="ok"/><text x="210" y="251" class="m" style="font-weight:bold">1 dòng bị sửa: thành công</text>
+
+  <rect x="450" y="290" width="280" height="56" rx="8" class="no"/>
+  <text x="590" y="314" class="m s">UPDATE ... SET available = 0, version = 6</text>
+  <text x="590" y="334" class="m s">WHERE sku = ? AND version = 5</text>
+  <rect x="450" y="358" width="280" height="36" rx="8" class="no"/><text x="590" y="381" class="m" style="font-weight:bold">0 dòng bị sửa: lỗi optimistic lock</text>
+  <rect x="450" y="410" width="280" height="56" rx="8" class="wn"/>
+  <text x="590" y="434" class="m s">retry: đọc lại, thấy available = 0</text>
+  <text x="590" y="454" class="m s">ném OutOfStockException</text>
+
+  <path d="M352 244 L400 244 L400 318 L448 318" class="ar" style="stroke:#16A34A"/>
+  <text x="400" y="234" class="m s">version đã đổi</text>
+  <text x="400" y="278" class="m s">từ 5 sang 6</text>
+</svg>

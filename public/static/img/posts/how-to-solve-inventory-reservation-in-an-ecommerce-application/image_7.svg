@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 420" role="img" aria-label="Flash sale: 20.000 request cùng tranh một dòng tồn kho, cách làm sai bán 137 đơn, cách làm đúng bán đúng 100 đơn">
+  <style>
+    text{font-family:Helvetica,Arial,sans-serif;font-size:15px;fill:#1E293B}
+    .s{font-size:14px;fill:#475569}
+    .m{text-anchor:middle}
+    .bx{fill:#DBEAFE;stroke:#2563EB;stroke-width:2}
+    .ok{fill:#DCFCE7;stroke:#16A34A;stroke-width:2}
+    .no{fill:#FEE2E2;stroke:#DC2626;stroke-width:2}
+    .wn{fill:#FEF3C7;stroke:#D97706;stroke-width:2}
+    .ar{stroke:#64748B;stroke-width:2;fill:none;marker-end:url(#a)}
+  </style>
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#64748B"/></marker></defs>
+  <rect width="800" height="420" fill="#F8FAFC"/>
+  <rect x="20" y="130" width="170" height="90" rx="12" class="bx"/>
+  <text x="105" y="168" class="m" style="font-weight:bold">20.000 người</text>
+  <text x="105" y="192" class="m s">bấm "Mua ngay"</text>
+  <text x="105" y="212" class="m s">trong cùng 1 giây</text>
+
+  <line x1="192" y1="175" x2="258" y2="175" class="ar"/>
+  <rect x="260" y="130" width="150" height="90" rx="12" class="bx"/>
+  <text x="335" y="168" class="m" style="font-weight:bold">Order service</text>
+  <text x="335" y="192" class="m s">nhiều instance,</text>
+  <text x="335" y="212" class="m s">nhiều thread</text>
+
+  <line x1="412" y1="175" x2="478" y2="175" class="ar"/>
+  <rect x="480" y="120" width="300" height="110" rx="12" class="wn"/>
+  <text x="630" y="155" class="m" style="font-weight:bold">1 dòng tồn kho của SKU</text>
+  <text x="630" y="182" class="m s">available = 100</text>
+  <text x="630" y="206" class="m s">hot row: mọi request đều đập vào đây</text>
+
+  <line x1="630" y1="232" x2="630" y2="262" class="ar"/>
+  <line x1="630" y1="262" x2="200" y2="262" stroke="#64748B" stroke-width="2"/>
+  <line x1="200" y1="262" x2="200" y2="292" class="ar"/>
+  <line x1="630" y1="262" x2="600" y2="262" stroke="#64748B" stroke-width="2"/>
+  <line x1="600" y1="262" x2="600" y2="292" class="ar"/>
+
+  <rect x="40" y="295" width="320" height="100" rx="12" class="no"/>
+  <text x="200" y="326" class="m" style="font-weight:bold">Check-then-act (cách 1)</text>
+  <text x="200" y="352" class="m s">137 đơn thành công cho 100 sản phẩm</text>
+  <text x="200" y="376" class="m" style="font-weight:bold;fill:#DC2626">Oversell</text>
+
+  <rect x="440" y="295" width="320" height="100" rx="12" class="ok"/>
+  <text x="600" y="326" class="m" style="font-weight:bold">Trừ kho nguyên tử (cách 2 trở đi)</text>
+  <text x="600" y="352" class="m s">100 đơn thành công, 19.900 nhận hết hàng</text>
+  <text x="600" y="376" class="m" style="font-weight:bold;fill:#16A34A">Đúng số lượng</text>
+</svg>

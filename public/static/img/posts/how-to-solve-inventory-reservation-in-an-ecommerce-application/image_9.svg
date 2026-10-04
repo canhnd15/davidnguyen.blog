@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 480" role="img" aria-label="Luồng của job quét reservation quá hạn: chuyển HELD sang EXPIRED có điều kiện rồi mới trả hàng về kho">
+  <style>
+    text{font-family:Helvetica,Arial,sans-serif;font-size:15px;fill:#1E293B}
+    .s{font-size:14px;fill:#475569}
+    .m{text-anchor:middle}
+    .bx{fill:#DBEAFE;stroke:#2563EB;stroke-width:2}
+    .ok{fill:#DCFCE7;stroke:#16A34A;stroke-width:2}
+    .no{fill:#FEE2E2;stroke:#DC2626;stroke-width:2}
+    .wn{fill:#FEF3C7;stroke:#D97706;stroke-width:2}
+    .ar{stroke:#64748B;stroke-width:2;fill:none;marker-end:url(#a)}
+  </style>
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#64748B"/></marker></defs>
+  <rect width="800" height="480" fill="#F8FAFC"/>
+  <rect x="250" y="20" width="300" height="56" rx="28" class="bx"/>
+  <text x="400" y="44" class="m" style="font-weight:bold">@Scheduled</text>
+  <text x="400" y="64" class="m s">chạy mỗi 30 giây</text>
+  <line x1="400" y1="78" x2="400" y2="108" class="ar"/>
+
+  <rect x="200" y="110" width="400" height="60" rx="10" class="bx"/>
+  <text x="400" y="136" class="m s">Lấy tối đa 100 reservation</text>
+  <text x="400" y="156" class="m s">status = HELD và expires_at &lt; now</text>
+  <line x1="400" y1="172" x2="400" y2="202" class="ar"/>
+
+  <rect x="150" y="204" width="500" height="60" rx="10" class="wn"/>
+  <text x="400" y="230" class="m s">Với từng reservation, trong một transaction riêng:</text>
+  <text x="400" y="250" class="m" style="font-family:Courier,monospace;font-size:13px">UPDATE ... SET status = 'EXPIRED' WHERE id = ? AND status = 'HELD'</text>
+  <line x1="400" y1="266" x2="400" y2="296" class="ar"/>
+
+  <rect x="290" y="298" width="220" height="50" rx="10" class="wn"/>
+  <text x="400" y="320" class="m s">Số dòng bị sửa</text>
+  <text x="400" y="338" class="m" style="font-weight:bold">= 1 ?</text>
+
+  <line x1="290" y1="323" x2="190" y2="323" class="ar" style="stroke:#16A34A"/>
+  <text x="240" y="313" class="m s">có</text>
+  <rect x="30" y="290" width="160" height="66" rx="10" class="ok"/>
+  <text x="110" y="318" class="m s">available += qty</text>
+  <text x="110" y="338" class="m s">trả hàng về kho</text>
+
+  <line x1="510" y1="323" x2="610" y2="323" class="ar" style="stroke:#DC2626"/>
+  <text x="560" y="313" class="m s">không (0)</text>
+  <rect x="610" y="290" width="160" height="66" rx="10" class="no"/>
+  <text x="690" y="318" class="m s">bỏ qua</text>
+  <text x="690" y="338" class="m s">đã bị bên khác xử lý</text>
+
+  <rect x="30" y="390" width="740" height="70" rx="10" style="fill:#F1F5F9;stroke:#94A3B8;stroke-width:1.5"/>
+  <text x="400" y="418" class="m s">Nếu confirm (thanh toán) và job chạy cùng lúc, chỉ một bên chuyển được trạng thái.</text>
+  <text x="400" y="440" class="m s">Chạy lại hoặc nhiều instance cùng chạy job vẫn không trả hàng hai lần.</text>
+</svg>

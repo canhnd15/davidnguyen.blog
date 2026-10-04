@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 470" role="img" aria-label="Transaction A giữ SELECT FOR UPDATE, transaction B bị chặn cho tới khi A commit">
+  <style>
+    text{font-family:Helvetica,Arial,sans-serif;font-size:15px;fill:#1E293B}
+    .s{font-size:14px;fill:#475569}
+    .m{text-anchor:middle}
+    .bx{fill:#DBEAFE;stroke:#2563EB;stroke-width:2}
+    .ok{fill:#DCFCE7;stroke:#16A34A;stroke-width:2}
+    .wn{fill:#FEF3C7;stroke:#D97706;stroke-width:2}
+    .ll{stroke:#94A3B8;stroke-width:1.5;stroke-dasharray:6 5}
+    .tm{stroke:#64748B;stroke-width:2;fill:none;marker-end:url(#a)}
+  </style>
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#64748B"/></marker></defs>
+  <rect width="800" height="470" fill="#F8FAFC"/>
+  <rect x="100" y="20" width="220" height="40" rx="8" class="bx"/><text x="210" y="46" class="m">Transaction A</text>
+  <rect x="480" y="20" width="220" height="40" rx="8" class="bx"/><text x="590" y="46" class="m">Transaction B</text>
+  <line x1="210" y1="60" x2="210" y2="440" class="ll"/>
+  <line x1="590" y1="60" x2="590" y2="440" class="ll"/>
+  <line x1="40" y1="80" x2="40" y2="440" class="tm"/><text x="40" y="460" class="m s">thời gian</text>
+
+  <rect x="110" y="85" width="200" height="40" rx="8" class="ok"/><text x="210" y="110" class="m s">SELECT ... FOR UPDATE</text>
+  <text x="210" y="145" class="m s">giữ lock trên dòng SKU</text>
+
+  <rect x="490" y="165" width="200" height="40" rx="8" class="wn"/><text x="590" y="190" class="m s">SELECT ... FOR UPDATE</text>
+  <rect x="490" y="212" width="200" height="60" rx="8" class="wn"/>
+  <text x="590" y="238" class="m" style="font-weight:bold">BỊ CHẶN</text>
+  <text x="590" y="258" class="m s">chờ A kết thúc</text>
+
+  <rect x="110" y="215" width="200" height="40" rx="8" class="ok"/><text x="210" y="240" class="m s">available -= qty</text>
+  <rect x="110" y="275" width="200" height="40" rx="8" class="ok"/><text x="210" y="300" class="m s">COMMIT, nhả lock</text>
+
+  <rect x="490" y="335" width="200" height="40" rx="8" class="ok"/><text x="590" y="360" class="m s">đọc giá trị mới, kiểm tra</text>
+  <rect x="490" y="385" width="200" height="40" rx="8" class="ok"/><text x="590" y="410" class="m s">trừ kho hoặc báo hết hàng</text>
+  <path d="M312 295 L400 295 L400 355 L488 355" stroke="#16A34A" stroke-width="2" fill="none" marker-end="url(#a)"/>
+  <text x="400" y="285" class="m s">lock được nhả</text>
+</svg>

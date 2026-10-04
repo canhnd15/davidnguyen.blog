@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 520" role="img" aria-label="Hai request cùng order_id: request đến sau vi phạm UNIQUE, transaction rollback, facade trả về reservation đã có">
+  <style>
+    text{font-family:Helvetica,Arial,sans-serif;font-size:15px;fill:#1E293B}
+    .s{font-size:14px;fill:#475569}
+    .m{text-anchor:middle}
+    .bx{fill:#DBEAFE;stroke:#2563EB;stroke-width:2}
+    .ok{fill:#DCFCE7;stroke:#16A34A;stroke-width:2}
+    .no{fill:#FEE2E2;stroke:#DC2626;stroke-width:2}
+    .wn{fill:#FEF3C7;stroke:#D97706;stroke-width:2}
+    .ar{stroke:#64748B;stroke-width:2;fill:none;marker-end:url(#a)}
+  </style>
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#64748B"/></marker></defs>
+  <rect width="800" height="520" fill="#F8FAFC"/>
+  <text x="200" y="30" class="m" style="font-weight:bold">Request 1 (orderId = 1001)</text>
+  <text x="600" y="30" class="m" style="font-weight:bold">Request 2 (retry, orderId = 1001)</text>
+
+  <rect x="60" y="50" width="280" height="60" rx="10" class="bx"/>
+  <text x="200" y="76" class="m s">findByOrderId: chưa có</text>
+  <text x="200" y="96" class="m s">(vẫn là check-then-act)</text>
+  <rect x="460" y="50" width="280" height="60" rx="10" class="bx"/>
+  <text x="600" y="76" class="m s">findByOrderId: chưa có</text>
+  <text x="600" y="96" class="m s">(request 1 chưa commit)</text>
+  <line x1="200" y1="112" x2="200" y2="138" class="ar"/>
+  <line x1="600" y1="112" x2="600" y2="138" class="ar"/>
+
+  <rect x="60" y="140" width="280" height="50" rx="10" class="bx"/><text x="200" y="171" class="m s">UPDATE inventory: available -= qty</text>
+  <rect x="460" y="140" width="280" height="50" rx="10" class="bx"/><text x="600" y="171" class="m s">UPDATE inventory: available -= qty</text>
+  <line x1="200" y1="192" x2="200" y2="218" class="ar"/>
+  <line x1="600" y1="192" x2="600" y2="218" class="ar"/>
+
+  <rect x="60" y="220" width="280" height="50" rx="10" class="ok"/><text x="200" y="251" class="m s">INSERT reservation: thành công</text>
+  <rect x="460" y="220" width="280" height="50" rx="10" class="no"/><text x="600" y="251" class="m s">INSERT: vi phạm UNIQUE(order_id)</text>
+  <line x1="200" y1="272" x2="200" y2="298" class="ar"/>
+  <line x1="600" y1="272" x2="600" y2="298" class="ar"/>
+
+  <rect x="60" y="300" width="280" height="50" rx="10" class="ok"/><text x="200" y="331" class="m s">COMMIT: kho bị trừ một lần</text>
+  <rect x="460" y="300" width="280" height="50" rx="10" class="no"/><text x="600" y="331" class="m s">ROLLBACK: kho được hoàn lại</text>
+  <line x1="600" y1="352" x2="600" y2="378" class="ar"/>
+
+  <rect x="430" y="380" width="340" height="60" rx="10" class="wn"/>
+  <text x="600" y="406" class="m s">Facade (ngoài transaction) bắt</text>
+  <text x="600" y="426" class="m s">DataIntegrityViolationException</text>
+  <line x1="600" y1="442" x2="600" y2="468" class="ar"/>
+  <rect x="430" y="470" width="340" height="40" rx="10" class="ok"/>
+  <text x="600" y="495" class="m s">findByOrderId: trả lại reservation của request 1</text>
+</svg>

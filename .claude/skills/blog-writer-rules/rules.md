@@ -18,6 +18,7 @@ If the rule has a reviewer counterpart, update the matching R-xx in `blog-review
 - **W-11** Technical terms stay in English (e.g. rate limit, cache, endpoint). Do not translate them.
 - **W-12** Use rhetorical Q&A and light humor. Emoji are sparse: 😁 in the body at most a few times, 🚀 only in the closing line.
 - **W-13** State opinions plainly, including trade-offs. No marketing tone and no filler.
+- **W-14** Never use the word "ngây thơ". For a first or simplest approach, say "cơ bản", "basic" or "đơn giản".
 
 ## Structure
 - **W-20** The first body line is `<TOCInline toc={props.toc} asDisclosure toHeading={3} />`.
@@ -41,6 +42,7 @@ If the rule has a reviewer counterpart, update the matching R-xx in `blog-review
 ## Images
 - **W-50** Centered: `<p align="center"><img src="/static/img/posts/<slug>/image_N.png" alt="..." title="..." /></p>` followed by `<p align="center">caption</p>`.
 - **W-51** Use the images listed in the brief. Where an image helps but none is supplied, insert the tag and list it under "Images needed" at the end of the run. Do not create image files.
+- **W-52** Prefer a diagram over a paragraph: wherever a flow, a sequence, a state change or a comparison between approaches is explained in words, add an image (flow, sequence or comparison diagram) instead of, or alongside a much shorter text. Insert the tag per W-50 and list it under "Images needed" with a description of what it should show.
 
 ## Facts and references
 - **W-60** Use the brief's references first. You may web-search official docs to verify claims.

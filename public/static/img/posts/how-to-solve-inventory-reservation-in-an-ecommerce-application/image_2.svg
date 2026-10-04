@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400" role="img" aria-label="Nhiều request xếp hàng trên row lock của SKU, mỗi request chạy một câu UPDATE có điều kiện">
+  <style>
+    text{font-family:Helvetica,Arial,sans-serif;font-size:15px;fill:#1E293B}
+    .s{font-size:14px;fill:#475569}
+    .m{text-anchor:middle}
+    .bx{fill:#DBEAFE;stroke:#2563EB;stroke-width:2}
+    .ok{fill:#DCFCE7;stroke:#16A34A;stroke-width:2}
+    .no{fill:#FEE2E2;stroke:#DC2626;stroke-width:2}
+    .wn{fill:#FEF3C7;stroke:#D97706;stroke-width:2}
+    .ln{stroke:#64748B;stroke-width:2;fill:none;marker-end:url(#a)}
+  </style>
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#64748B"/></marker></defs>
+  <rect width="800" height="400" fill="#F8FAFC"/>
+  <text x="90" y="50" class="m s">Request đến cùng lúc</text>
+  <rect x="30" y="75" width="120" height="44" rx="8" class="bx"/><text x="90" y="103" class="m">Request 1</text>
+  <rect x="30" y="170" width="120" height="44" rx="8" class="bx"/><text x="90" y="198" class="m">Request 2</text>
+  <rect x="30" y="265" width="120" height="44" rx="8" class="bx"/><text x="90" y="293" class="m">Request 3</text>
+  <line x1="152" y1="97" x2="288" y2="170" class="ln"/>
+  <line x1="152" y1="192" x2="288" y2="192" class="ln"/>
+  <line x1="152" y1="287" x2="288" y2="214" class="ln"/>
+  <text x="220" y="148" class="m s">xếp hàng chờ lock</text>
+
+  <rect x="290" y="95" width="250" height="220" rx="12" class="wn"/>
+  <text x="415" y="125" class="m" style="font-weight:bold">Row lock của SKU</text>
+  <text x="415" y="155" class="m s">Mỗi lần chỉ một request chạy:</text>
+  <text x="415" y="188" class="m" style="font-family:Courier,monospace;font-size:13px">UPDATE inventory</text>
+  <text x="415" y="208" class="m" style="font-family:Courier,monospace;font-size:13px">SET available = available - qty</text>
+  <text x="415" y="228" class="m" style="font-family:Courier,monospace;font-size:13px">WHERE sku = ?</text>
+  <text x="415" y="248" class="m" style="font-family:Courier,monospace;font-size:13px">AND available &gt;= qty</text>
+  <text x="415" y="290" class="m s">WHERE được đánh giá lại trên giá trị mới nhất</text>
+
+  <line x1="542" y1="170" x2="618" y2="130" class="ln"/>
+  <line x1="542" y1="240" x2="618" y2="280" class="ln"/>
+  <rect x="620" y="85" width="160" height="90" rx="10" class="ok"/>
+  <text x="700" y="120" class="m" style="font-weight:bold">1 dòng bị sửa</text>
+  <text x="700" y="145" class="m s">Giữ chỗ thành công</text>
+  <rect x="620" y="235" width="160" height="90" rx="10" class="no"/>
+  <text x="700" y="270" class="m" style="font-weight:bold">0 dòng bị sửa</text>
+  <text x="700" y="295" class="m s">OutOfStockException</text>
+</svg>

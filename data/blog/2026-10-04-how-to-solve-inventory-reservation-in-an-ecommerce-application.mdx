@@ -1,0 +1,788 @@
+---
+title: 'Làm sao xử lý Inventory Reservation khi flash sale mà không bị oversell?'
+date: '2026-10-04'
+lastmod: '2026-10-04'
+tags: ['E-commerce', 'High Concurrency', 'Java', 'Spring Boot', 'software-architecture']
+draft: true
+summary: Trong bài viết này, mình sẽ cùng anh em tìm hiểu bài toán Inventory Reservation (giữ chỗ tồn kho) trong một hệ thống e-commerce có lượng truy cập đồng thời rất lớn, đặc biệt là lúc flash sale. Mình đi từ cách viết cơ bản nhất (đọc stock rồi trừ) và chỉ ra vì sao nó bị oversell, rồi lần lượt qua atomic UPDATE, pessimistic lock, optimistic lock, Redis Lua script và reservation có TTL, kèm code Java & Spring Boot cho từng cách và một bảng so sánh để anh em chọn đúng giải pháp cho hệ thống của mình.
+images: ['/static/img/cover/posts/inventory-reservation.svg']
+layout: PostLayout
+---
+
+<TOCInline toc={props.toc} asDisclosure toHeading={3} />
+
+# 1. - Inventory Reservation là gì và vì sao flash sale làm nó "vỡ"?
+
+Anh em thử tưởng tượng 12h00 trưa, shop mở flash sale 100 chiếc tai nghe giá 1 đồng (ok, 99k cho thực tế). Có 20.000 người bấm "Mua ngay" trong cùng một giây. Hệ thống xử lý xong, và sáng hôm sau team CS báo: **đã bán 137 đơn cho 100 cái tai nghe**.
+
+Đây là lỗi **oversell** - bán nhiều hơn số hàng đang có, và nó là bug **concurrency**: code chạy đúng khi test từng request một, sai khi nhiều request chạy cùng lúc.
+
+<p align="center">
+  <img
+    src="/static/img/posts/how-to-solve-inventory-reservation-in-an-ecommerce-application/image_7.svg"
+    alt="Sơ đồ flash sale: 20.000 request qua order service cùng đập vào một dòng tồn kho, cách làm check-then-act bán 137 đơn, cách trừ kho nguyên tử bán đúng 100 đơn"
+    title="Flash sale và bài toán oversell"
+  />
+</p>
+<p align="center">
+  Flash sale: 20.000 request cùng tranh một dòng tồn kho, cách làm sai bán lố, cách làm đúng bán
+  đúng số lượng
+</p>
+
+Trước khi đi tiếp, mình chốt khái niệm cho rõ:
+
+- **Inventory** (tồn kho): số lượng hàng có thể bán của một SKU.
+- **Inventory Reservation** (giữ chỗ tồn kho): khi user bấm đặt hàng hoặc vào checkout, hệ thống "giữ" một số lượng hàng cho user đó trong một khoảng thời gian (ví dụ 10-15 phút) để họ thanh toán. Hàng đã giữ thì người khác không mua được nữa, dù đơn chưa trả tiền.
+
+Nghe đơn giản, nhưng với hệ thống đông người dùng, mình phải giải quyết cùng lúc 4 vấn đề:
+
+- **Oversell**: hai request cùng thấy "còn 1 cái" và cùng trừ.
+- **Hot row / hot key**: hàng nghìn request cùng đập vào đúng một dòng dữ liệu của một SKU.
+- **Giữ chỗ mà không thanh toán**: user giữ hàng rồi bỏ đi, hàng bị "kẹt" và không ai mua được (nhìn như hết hàng nhưng thực tế còn).
+- **Retry và lỗi giữa chừng**: request timeout, client gọi lại, service crash sau khi trừ kho nhưng chưa tạo đơn. Trừ kho hai lần hay mất luôn một lần đều sai.
+
+=> Trong bài viết này (thuộc series **Design an e-commerce system**), mình sẽ cùng anh em đi từ cách làm cơ bản nhất đến nâng cao, mỗi cách đều có code Java & Spring Boot, và cuối bài là bảng so sánh để anh em chọn. Bài này dành cho anh em từ mức beginner đến intermediate: biết Spring Boot và JPA cơ bản là đủ.
+
+**Note**: Mình chưa có repo demo cho bài này, nên code bên dưới là các đoạn trích đủ để anh em copy và chạy thử trong project của mình.
+
+# 2. - Chuẩn bị: schema và entity
+
+Cả bài dùng chung một bảng `inventory` (ví dụ với PostgreSQL):
+
+```sql
+CREATE TABLE inventory (
+    sku       VARCHAR(64) PRIMARY KEY,
+    available INT    NOT NULL,
+    -- Chốt chặn cuối cùng: dù code sai thì DB vẫn không cho available âm
+    CONSTRAINT chk_inventory_available CHECK (available >= 0)
+);
+
+INSERT INTO inventory (sku, available) VALUES ('HEADPHONE-01', 100);
+```
+
+```java
+@Entity
+@Table(name = "inventory")
+@Getter
+@Setter
+public class Inventory {
+
+    @Id
+    private String sku;
+
+    private int available;
+
+    // Cố ý KHÔNG có @Version ở entity dùng chung này.
+    // Optimistic lock (cách 4) dùng một entity riêng, xem phần 6.
+}
+```
+
+```java
+// Exception nghiệp vụ để controller trả về 409 Conflict
+public class OutOfStockException extends RuntimeException {
+    public OutOfStockException(String sku) {
+        super("SKU '" + sku + "' đã hết hàng");
+    }
+}
+```
+
+**Note**: Để code gọn, mình bỏ phần `import` và dùng Lombok (`@Getter`, `@Setter`, `@RequiredArgsConstructor`). Các annotation JPA nằm trong package `jakarta.persistence` (Spring Boot 3 trở lên). Entity `Inventory` ở trên cố ý **không** có `@Version`: nếu có, Hibernate sẽ tự thêm `AND version = ?` vào câu `UPDATE` và cách 1 sẽ không còn oversell nữa, làm demo ở phần 3 và phần 9 sai mục đích. Mình chỉ đưa `@Version` vào ở cách 4.
+
+# 3. - Cách 1: Đọc rồi trừ (naive)
+
+Cách viết mà ai mới làm backend cũng sẽ nghĩ tới đầu tiên:
+
+```java
+@Service
+@RequiredArgsConstructor
+public class NaiveInventoryService {
+
+    private final InventoryRepository inventoryRepository;
+
+    // Đừng dùng: check-then-act race condition
+    @Transactional
+    public void reserve(String sku, int qty) {
+        Inventory inv = inventoryRepository.findById(sku).orElseThrow();
+
+        if (inv.getAvailable() < qty) {
+            throw new OutOfStockException(sku);
+        }
+
+        inv.setAvailable(inv.getAvailable() - qty);
+        inventoryRepository.save(inv);
+    }
+}
+```
+
+Nhìn logic thì hợp lý: còn đủ hàng thì trừ. Nhưng với hai request cùng mua khi `available = 1` (xem timeline bên dưới), cả hai đều đọc được `1`, cùng qua bước check và cùng ghi `0`.
+
+=> Hai đơn thành công cho 1 sản phẩm. Đây là **lost update** kết hợp với check-then-act, y hệt kiểu bug mình đã phân tích trong bài [duplicate username](https://davidnguyenblog.vercel.app/blog/how-to-prevent-duplicate-username-at-scale). Với mức isolation mặc định của PostgreSQL là [`READ COMMITTED`](https://www.postgresql.org/docs/current/transaction-iso.html), mỗi câu `SELECT` chỉ thấy dữ liệu đã commit, nên cả hai transaction đều có thể đọc giá trị cũ như trên.
+
+<p align="center">
+  <img
+    src="/static/img/posts/how-to-solve-inventory-reservation-in-an-ecommerce-application/image_1.svg"
+    alt="Sơ đồ hai request A và B cùng đọc available = 1, cùng pass bước check rồi cùng ghi available = 0, dẫn tới oversell"
+    title="Cách 1: đọc rồi trừ"
+  />
+</p>
+<p align="center">
+  Cách 1: hai request cùng đọc available = 1, cả hai đều pass check và đều trừ kho, kết quả là
+  oversell
+</p>
+
+# 4. - Cách 2: Atomic UPDATE có điều kiện
+
+Thay vì đọc lên application để quyết định, mình đẩy luôn bước "check và trừ" xuống database trong **một câu lệnh duy nhất**:
+
+```java
+public interface InventoryRepository extends JpaRepository<Inventory, String> {
+
+    // Trả về số dòng bị ảnh hưởng: 1 = trừ thành công, 0 = không đủ hàng
+    @Modifying
+    @Query("""
+        UPDATE Inventory i
+           SET i.available = i.available - :qty
+         WHERE i.sku = :sku
+           AND i.available >= :qty
+        """)
+    int decreaseIfEnough(@Param("sku") String sku, @Param("qty") int qty);
+}
+```
+
+```java
+@Service
+@RequiredArgsConstructor
+public class AtomicInventoryService {
+
+    private final InventoryRepository inventoryRepository;
+
+    @Transactional
+    public void reserve(String sku, int qty) {
+        int updated = inventoryRepository.decreaseIfEnough(sku, qty);
+        if (updated == 0) {
+            throw new OutOfStockException(sku);
+        }
+    }
+}
+```
+
+Vì sao cách này đúng? Câu `UPDATE` lấy [row lock](https://www.postgresql.org/docs/current/explicit-locking.html) trên dòng của SKU, các request khác cùng SKU phải xếp hàng chờ. Khi đến lượt, ở mức `READ COMMITTED` PostgreSQL [đánh giá lại điều kiện `WHERE`](https://www.postgresql.org/docs/current/transaction-iso.html) trên phiên bản dòng mới nhất, nên `available >= :qty` luôn được kiểm tra trên giá trị đã cập nhật. Không còn khoảng hở giữa "check" và "act" như cách 1.
+
+=> Đây là cách mình khuyên anh em **bắt đầu từ đây**: ít code nhất, không cần lock ở application, và đủ cho phần lớn hệ thống. Cộng thêm `CHECK (available >= 0)` ở schema là lớp bảo vệ cuối nếu sau này có ai đó viết một câu `UPDATE` thiếu điều kiện.
+
+**Note**: Các câu `@Modifying` như `decreaseIfEnough` chạy thẳng xuống database và **bỏ qua persistence context** của JPA. Có ba hệ quả anh em cần biết:
+
+- Nó **không tăng `@Version`**, vì Hibernate không hề thấy entity nào bị sửa.
+
+- Nếu trong cùng transaction anh em đã load `Inventory` lên, object đó vẫn giữ giá trị cũ (stale) sau câu `UPDATE`. Đặt `@Modifying(clearAutomatically = true)` để xoá persistence context, hoặc đừng đọc lại entity đó trong cùng transaction. Xem thêm phần [Modifying Queries](https://docs.spring.io/spring-data/jpa/reference/jpa/query-methods.html#jpa.modifying-queries) trong tài liệu Spring Data JPA (lưu ý `clearAutomatically` cũng bỏ luôn các thay đổi chưa flush).
+
+- Vì vậy đừng trộn bulk update kiểu này với `@Version` trên **cùng một entity**: version sẽ không còn phản ánh đúng các lần sửa. Đó là lý do cách 4 dùng entity riêng.
+
+**Note**: Điểm yếu là **hot row**. Mọi request của cùng một SKU đều xếp hàng chờ trên một row lock, nên throughput của SKU đó bị chặn bởi tốc độ commit của database. Với flash sale cực lớn thì phần 7 và 8 mới là chỗ giải quyết.
+
+<p align="center">
+  <img
+    src="/static/img/posts/how-to-solve-inventory-reservation-in-an-ecommerce-application/image_2.svg"
+    alt="Sơ đồ nhiều request xếp hàng trên một row lock của SKU, mỗi request thực hiện UPDATE có điều kiện available >= qty"
+    title="Cách 2: atomic UPDATE có điều kiện"
+  />
+</p>
+<p align="center">
+  Cách 2: kiểm tra và trừ kho nằm trong cùng một câu UPDATE, các request cùng SKU xếp hàng trên row
+  lock
+</p>
+
+# 5. - Cách 3: Pessimistic lock
+
+Nếu logic của anh em phức tạp hơn một phép trừ (ví dụ phải đọc nhiều dòng, áp dụng quy tắc rồi mới quyết định), câu `UPDATE` đơn giản không đủ. Lúc đó có thể khóa dòng trước rồi mới xử lý, bằng [`SELECT ... FOR UPDATE`](https://www.postgresql.org/docs/current/explicit-locking.html). Trong Spring Data JPA, mình khai báo qua [`@Lock`](https://docs.spring.io/spring-data/jpa/reference/jpa/locking.html) trên repository method:
+
+```java
+public interface InventoryRepository extends JpaRepository<Inventory, String> {
+
+    // Sinh ra SELECT ... FOR UPDATE, các transaction khác phải chờ
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT i FROM Inventory i WHERE i.sku = :sku")
+    Optional<Inventory> findBySkuForUpdate(@Param("sku") String sku);
+}
+```
+
+```java
+@Service
+@RequiredArgsConstructor
+public class PessimisticInventoryService {
+
+    private final InventoryRepository inventoryRepository;
+
+    @Transactional
+    public void reserve(String sku, int qty) {
+        // Từ đây tới commit, không ai khác sửa được dòng này
+        Inventory inv = inventoryRepository.findBySkuForUpdate(sku).orElseThrow();
+
+        if (inv.getAvailable() < qty) {
+            throw new OutOfStockException(sku);
+        }
+        inv.setAvailable(inv.getAvailable() - qty);
+    }
+}
+```
+
+Lock được giữ **tới khi transaction kết thúc**. Nghĩa là mọi thứ nằm trong `@Transactional` (gọi service khác, gọi API ngoài...) đều kéo dài thời gian giữ lock. Nếu anh em lỡ gọi payment gateway trong transaction này thì cả SKU bị kẹt theo.
+
+=> Pessimistic lock đúng và dễ hiểu, nhưng so với cách 2 nó tốn thêm một round-trip và giữ lock lâu hơn. Mình chỉ dùng khi thật sự cần đọc dữ liệu trước khi quyết định.
+
+<p align="center">
+  <img
+    src="/static/img/posts/how-to-solve-inventory-reservation-in-an-ecommerce-application/image_3.svg"
+    alt="Sơ đồ transaction A giữ SELECT FOR UPDATE trên dòng inventory, transaction B bị chặn chờ cho tới khi A commit"
+    title="Cách 3: pessimistic lock"
+  />
+</p>
+<p align="center">
+  Cách 3: transaction A giữ lock tới khi commit, transaction B phải chờ rồi mới đọc được giá trị
+  mới
+</p>
+
+# 6. - Cách 4: Optimistic lock với @Version
+
+Ngược lại với pessimistic: **không khóa**, cứ đọc và xử lý, đến lúc ghi mới kiểm tra xem có ai sửa dòng này trong lúc mình làm không. JPA làm việc đó thông qua field [`@Version`](https://jakarta.ee/specifications/persistence/3.2/apidocs/jakarta.persistence/jakarta/persistence/version).
+
+Mình thêm cột `version` vào bảng và map bằng một entity **riêng** trỏ cùng bảng `inventory`, để các cách khác (đặc biệt là cách 1 và các câu `@Modifying`) không bị ảnh hưởng:
+
+```sql
+ALTER TABLE inventory ADD COLUMN version BIGINT NOT NULL DEFAULT 0;
+```
+
+```java
+@Entity
+@Table(name = "inventory")
+@Getter
+@Setter
+public class VersionedInventory {
+
+    @Id
+    private String sku;
+
+    private int available;
+
+    @Version
+    private long version;
+}
+
+public interface VersionedInventoryRepository extends JpaRepository<VersionedInventory, String> {
+}
+```
+
+```java
+@Service
+@RequiredArgsConstructor
+public class OptimisticInventoryService {
+
+    private static final int MAX_RETRY = 3;
+
+    private final InventoryTxService txService;
+
+    public void reserve(String sku, int qty) {
+        for (int attempt = 1; attempt <= MAX_RETRY; attempt++) {
+            try {
+                txService.decrease(sku, qty);
+                return;
+            } catch (ObjectOptimisticLockingFailureException ex) {
+                // Có request khác sửa dòng trước mình, đọc lại rồi thử lần nữa
+                if (attempt == MAX_RETRY) {
+                    throw ex;
+                }
+            }
+        }
+    }
+}
+```
+
+```java
+@Service
+@RequiredArgsConstructor
+public class InventoryTxService {
+
+    private final VersionedInventoryRepository versionedRepository;
+
+    // Mỗi lần retry phải là một transaction mới, nên tách thành bean riêng
+    @Transactional
+    public void decrease(String sku, int qty) {
+        VersionedInventory inv = versionedRepository.findById(sku).orElseThrow();
+
+        if (inv.getAvailable() < qty) {
+            throw new OutOfStockException(sku);
+        }
+        inv.setAvailable(inv.getAvailable() - qty);
+        // Khi flush, Hibernate sinh: UPDATE ... WHERE sku = ? AND version = ?
+        // Nếu 0 dòng bị ảnh hưởng => ném lỗi optimistic locking
+    }
+}
+```
+
+**Note**: Retry phải nằm **ngoài** transaction. Nếu để vòng `for` bên trong cùng một `@Transactional` thì transaction đó đã hỏng và lần thử sau vẫn đọc cùng dữ liệu cũ. Đó là lý do mình tách `InventoryTxService` thành bean riêng (gọi qua proxy mới có transaction mới).
+
+Optimistic lock rất hợp khi **xung đột hiếm**, ví dụ sản phẩm bình thường. Còn trong flash sale, hàng nghìn request tranh cùng một dòng thì gần như request nào cũng đụng nhau, phần lớn bị retry rồi fail. Đã tốn công xử lý mà còn tạo thêm tải cho database.
+
+=> Với flash sale, optimistic lock là lựa chọn **không phù hợp** cho đúng SKU nóng. Mình đưa vào bài để anh em hiểu vì sao nó hay được nhắc tới nhưng không cứu được trường hợp này.
+
+<p align="center">
+  <img
+    src="/static/img/posts/how-to-solve-inventory-reservation-in-an-ecommerce-application/image_4.svg"
+    alt="Sơ đồ hai request cùng đọc version = 5, request A cập nhật thành công lên version 6, request B cập nhật với version = 5 bị 0 dòng ảnh hưởng, ném lỗi và retry"
+    title="Cách 4: optimistic lock"
+  />
+</p>
+<p align="center">
+  Cách 4: request đến sau thấy version đã đổi, update không khớp dòng nào nên phải đọc lại và thử
+  lại
+</p>
+
+# 7. - Cách 5: Redis + Lua script làm cổng chặn phía trước
+
+Khi database trở thành nút cổ chai, ý tưởng là để **Redis** đứng trước và loại sớm những request chắc chắn thất bại. Với 20.000 người tranh 100 sản phẩm, 19.900 người còn lại không nên chạm tới database.
+
+Redis xử lý lệnh trên một thread, và một [Lua script](https://redis.io/docs/latest/develop/programmability/eval-intro/) được thực thi nguyên tử, nên script "đọc rồi trừ" bên dưới không bị chen ngang:
+
+File `src/main/resources/scripts/reserve_stock.lua`:
+
+```lua
+-- KEYS[1] = stock:{sku}, ARGV[1] = qty
+local stock = tonumber(redis.call('GET', KEYS[1]))
+if stock == nil then
+    return -1   -- key chưa được warm-up
+end
+if stock < tonumber(ARGV[1]) then
+    return 0    -- không đủ hàng
+end
+redis.call('DECRBY', KEYS[1], ARGV[1])
+return 1        -- trừ thành công
+```
+
+```java
+@Service
+public class RedisStockGate {
+
+    private final StringRedisTemplate redis;
+    private final DefaultRedisScript<Long> reserveScript;
+
+    public RedisStockGate(StringRedisTemplate redis) {
+        this.redis = redis;
+        this.reserveScript = new DefaultRedisScript<>();
+        // Đọc file src/main/resources/scripts/reserve_stock.lua
+        this.reserveScript.setLocation(new ClassPathResource("scripts/reserve_stock.lua"));
+        this.reserveScript.setResultType(Long.class);
+    }
+
+    /** Nạp tồn kho từ DB lên Redis trước giờ mở bán */
+    public void warmUp(String sku, int available) {
+        redis.opsForValue().set(key(sku), String.valueOf(available));
+    }
+
+    public boolean tryReserve(String sku, int qty) {
+        Long result = redis.execute(reserveScript, List.of(key(sku)), String.valueOf(qty));
+        if (result == null || result == -1L) {
+            throw new IllegalStateException("Stock của " + sku + " chưa được warm-up");
+        }
+        return result == 1L;
+    }
+
+    /** Hoàn lại khi bước sau (ghi DB) thất bại */
+    public void rollback(String sku, int qty) {
+        redis.opsForValue().increment(key(sku), qty);
+    }
+
+    private String key(String sku) {
+        return "stock:" + sku;
+    }
+}
+```
+
+Điểm quan trọng là Redis chỉ là **cổng chặn**, database vẫn là nguồn chân lý. Mình ghép với cách 2:
+
+```java
+@Service
+@RequiredArgsConstructor
+public class GatedInventoryService {
+
+    private final RedisStockGate gate;
+    private final AtomicInventoryService dbService; // cách 2
+
+    public void reserve(String sku, int qty) {
+        if (!gate.tryReserve(sku, qty)) {
+            // Chặn ngay ở Redis, không chạm database
+            throw new OutOfStockException(sku);
+        }
+        try {
+            dbService.reserve(sku, qty); // atomic UPDATE vẫn là chốt chặn cuối
+        } catch (RuntimeException ex) {
+            gate.rollback(sku, qty);     // ghi DB lỗi thì trả lại hàng ở Redis
+            throw ex;
+        }
+    }
+}
+```
+
+Anh em cần lưu ý:
+
+- Redis có thể restart hoặc mất dữ liệu, nên số trên Redis có thể lệch DB. Vì vậy DB vẫn phải có atomic UPDATE và `CHECK` constraint để không bao giờ oversell, còn Redis lệch thì tệ nhất là bán thiếu và đối soát lại.
+
+- Nếu app crash giữa lúc Redis đã trừ và DB chưa trừ, số trên Redis bị hụt. Cần job đối soát định kỳ giữa Redis và DB.
+
+- Nếu dùng Redis Cluster, [tài liệu Redis](https://redis.io/docs/latest/develop/programmability/eval-intro/) yêu cầu mọi key mà script đụng tới phải được truyền qua `KEYS` (script ở trên chỉ dùng đúng một key `stock:{sku}` nên thoả điều kiện), và script khai báo shebang `#!` thì không được truy cập các key thuộc nhiều hash slot khác nhau. Nếu sau này anh em mở rộng script sang nhiều key, hãy đọc kỹ phần này.
+
+=> Cách này hấp thụ gần như toàn bộ lượng request "chắc chắn fail" bằng bộ nhớ, đổi lại hệ thống có thêm một thành phần cần vận hành và đối soát.
+
+<p align="center">
+  <img
+    src="/static/img/posts/how-to-solve-inventory-reservation-in-an-ecommerce-application/image_5.svg"
+    alt="Sơ đồ request đi qua Redis Lua script trước, request hết hàng bị chặn tại Redis, request thành công đi tiếp xuống database với atomic UPDATE"
+    title="Cách 5: Redis Lua script"
+  />
+</p>
+<p align="center">
+  Cách 5: Redis chặn phần lớn request hết hàng, chỉ request thành công mới đi xuống database
+</p>
+
+# 8. - Cách 6: Reservation có TTL (giữ chỗ đúng nghĩa)
+
+Các cách trên mới giải quyết bài toán "trừ kho không oversell". Nhưng **reservation** đúng nghĩa còn một vế nữa: user giữ hàng rồi không thanh toán thì sao? Nếu trừ kho vĩnh viễn ngay lúc bấm "Đặt hàng", hàng bị kẹt. Nếu không trừ thì lại oversell.
+
+Lời giải là biến reservation thành một **thực thể có vòng đời**:
+
+- `HELD`: đã giữ chỗ, kho đã bị trừ, đang chờ thanh toán, có thời hạn `expires_at`.
+- `CONFIRMED`: đã thanh toán, giữ chỗ trở thành đơn hàng.
+- `RELEASED` / `EXPIRED`: user huỷ hoặc quá hạn, trả hàng lại kho.
+
+```sql
+CREATE TABLE stock_reservation (
+    id         UUID PRIMARY KEY,
+    order_id   VARCHAR(64) NOT NULL UNIQUE,  -- idempotency: một order chỉ giữ chỗ một lần
+    sku        VARCHAR(64) NOT NULL,
+    qty        INT         NOT NULL,
+    status     VARCHAR(16) NOT NULL,         -- HELD | CONFIRMED | RELEASED | EXPIRED
+    expires_at TIMESTAMPTZ NOT NULL          -- có múi giờ, ứng dụng làm việc với Instant (UTC)
+);
+CREATE INDEX idx_reservation_status_expires ON stock_reservation (status, expires_at);
+```
+
+```java
+@Entity
+@Table(name = "stock_reservation")
+@Getter
+@Setter
+public class StockReservation {
+
+    @Id
+    private UUID id;
+
+    @Column(name = "order_id", nullable = false, unique = true)
+    private String orderId;
+
+    private String sku;
+
+    private int qty;
+
+    // HELD | CONFIRMED | RELEASED | EXPIRED (có thể đổi sang enum nếu anh em thích)
+    private String status;
+
+    @Column(name = "expires_at", nullable = false)
+    private Instant expiresAt;
+}
+```
+
+Cột `order_id UNIQUE` chính là chỗ xử lý vấn đề **retry**. Bước kiểm tra `findByOrderId` vẫn là check-then-act, nên chốt chặn thật sự là constraint: `INSERT` thứ hai bị từ chối và **cả transaction rollback, kho không bị trừ hai lần**. Lỗi được bắt ở một facade bên ngoài transaction (cùng tinh thần "insert-and-catch" ở bài duplicate username).
+
+```java
+public interface ReservationRepository extends JpaRepository<StockReservation, UUID> {
+
+    Optional<StockReservation> findByOrderId(String orderId);
+
+    List<StockReservation> findTop100ByStatusAndExpiresAtBefore(String status, Instant now);
+
+    // Chuyển trạng thái có điều kiện: chỉ một bên "thắng" khi confirm và expire đụng nhau
+    @Modifying
+    @Query("UPDATE StockReservation r SET r.status = :to WHERE r.id = :id AND r.status = :from")
+    int transition(@Param("id") UUID id, @Param("from") String from, @Param("to") String to);
+}
+```
+
+```java
+@Service
+@RequiredArgsConstructor
+public class ReservationService {
+
+    private static final Duration HOLD_TIME = Duration.ofMinutes(10);
+
+    private final InventoryRepository inventoryRepository;
+    private final ReservationRepository reservationRepository;
+
+    @Transactional
+    public StockReservation reserve(String orderId, String sku, int qty) {
+        // Retry tuần tự của cùng một đơn: trả lại kết quả cũ, không trừ kho lần nữa
+        // (hai request đồng thời vẫn có thể lọt qua đây, constraint UNIQUE sẽ chặn ở bước save)
+        Optional<StockReservation> existing = reservationRepository.findByOrderId(orderId);
+        if (existing.isPresent()) {
+            return existing.get();
+        }
+
+        // Trừ kho bằng atomic UPDATE ở cách 2
+        if (inventoryRepository.decreaseIfEnough(sku, qty) == 0) {
+            throw new OutOfStockException(sku);
+        }
+
+        StockReservation r = new StockReservation();
+        r.setId(UUID.randomUUID());
+        r.setOrderId(orderId);
+        r.setSku(sku);
+        r.setQty(qty);
+        r.setStatus("HELD");
+        r.setExpiresAt(Instant.now().plus(HOLD_TIME));
+        // saveAndFlush để lỗi UNIQUE nổ ra ngay tại đây, trong transaction, thay vì lúc commit
+        return reservationRepository.saveAndFlush(r);
+    }
+
+    /** Gọi khi payment thành công */
+    @Transactional
+    public void confirm(UUID reservationId) {
+        int changed = reservationRepository.transition(reservationId, "HELD", "CONFIRMED");
+        if (changed == 0) {
+            throw new IllegalStateException("Reservation đã hết hạn hoặc bị huỷ");
+        }
+    }
+
+    /** Gọi khi user huỷ đơn hoặc job dọn dẹp phát hiện quá hạn */
+    @Transactional
+    public void release(StockReservation r, String finalStatus) {
+        // Chỉ khi chuyển trạng thái thành công mới trả hàng, nên chạy lại bao nhiêu lần cũng an toàn
+        if (reservationRepository.transition(r.getId(), "HELD", finalStatus) == 1) {
+            inventoryRepository.increase(r.getSku(), r.getQty());
+        }
+    }
+}
+```
+
+Facade bên ngoài transaction, bắt lỗi trùng `order_id` và trả lại reservation đã có:
+
+```java
+@Service
+@RequiredArgsConstructor
+public class ReservationFacade {
+
+    private final ReservationService reservationService;
+    private final ReservationRepository reservationRepository;
+
+    // Cố ý KHÔNG có @Transactional: transaction của reserve() đã rollback khi tới được đây
+    public StockReservation reserve(String orderId, String sku, int qty) {
+        try {
+            return reservationService.reserve(orderId, sku, qty);
+        } catch (DataIntegrityViolationException ex) {
+            // Request khác cùng orderId đã thắng, trả về kết quả của nó (kho chỉ bị trừ một lần)
+            return reservationRepository.findByOrderId(orderId).orElseThrow(() -> ex);
+        }
+    }
+}
+```
+
+<p align="center">
+  <img
+    src="/static/img/posts/how-to-solve-inventory-reservation-in-an-ecommerce-application/image_8.svg"
+    alt="Sơ đồ hai request cùng order_id: request 1 insert thành công và commit, request 2 vi phạm UNIQUE nên rollback, facade bắt lỗi và trả về reservation của request 1"
+    title="Retry idempotent với UNIQUE order_id"
+  />
+</p>
+<p align="center">
+  Retry cùng một đơn: request đến sau bị UNIQUE chặn, rollback hoàn lại kho, facade trả về
+  reservation đã có
+</p>
+
+`increase` là một câu `UPDATE` cộng thêm đơn giản trong `InventoryRepository`:
+
+```java
+@Modifying
+@Query("UPDATE Inventory i SET i.available = i.available + :qty WHERE i.sku = :sku")
+int increase(@Param("sku") String sku, @Param("qty") int qty);
+```
+
+Cuối cùng là job quét các reservation quá hạn và trả hàng về kho:
+
+```java
+@Component
+@RequiredArgsConstructor
+public class ReservationExpiryJob {
+
+    private final ReservationRepository reservationRepository;
+    private final ReservationService reservationService;
+
+    // Cần @EnableScheduling ở một class @Configuration
+    @Scheduled(fixedDelay = 30_000)
+    public void releaseExpired() {
+        List<StockReservation> expired =
+                reservationRepository.findTop100ByStatusAndExpiresAtBefore("HELD", Instant.now());
+
+        for (StockReservation r : expired) {
+            reservationService.release(r, "EXPIRED");
+        }
+    }
+}
+```
+
+<p align="center">
+  <img
+    src="/static/img/posts/how-to-solve-inventory-reservation-in-an-ecommerce-application/image_9.svg"
+    alt="Luồng job quét reservation quá hạn: lấy các reservation HELD đã hết hạn, UPDATE có điều kiện sang EXPIRED, chỉ khi cập nhật được 1 dòng mới cộng lại available"
+    title="Job quét reservation quá hạn"
+  />
+</p>
+<p align="center">
+  Job expiry: chuyển trạng thái có điều kiện trước, chỉ bên thắng mới được trả hàng về kho
+</p>
+
+Hai chi tiết nhỏ mà quan trọng:
+
+- Câu `UPDATE ... WHERE status = 'HELD'` đóng vai trò giống atomic UPDATE ở cách 2, nhưng áp lên **trạng thái**, nên không có chuyện vừa thanh toán xong vừa bị trả hàng. Lưu ý là `confirm()` ở trên **không kiểm tra `expires_at`**: nếu thanh toán thành công lúc reservation đã quá hạn nhưng job chưa kịp quét, đơn vẫn được chốt. Mình chọn ưu tiên đơn đã trả tiền; nếu anh em muốn chặt hơn thì thêm điều kiện `AND expires_at > :now` vào câu `transition`, đổi lại user đã thanh toán có thể bị từ chối và phải hoàn tiền.
+
+- Nhiều instance cùng chạy job vẫn an toàn nhờ điều kiện trên, chỉ tốn công làm thừa. Ở quy mô lớn anh em có thể dùng Redis key với TTL hoặc delayed message để thay cho polling.
+
+**QUESTION**: Cách 6 có thay thế cách 2 không?
+
+=> Không, nó **xây trên** cách 2. Bước trừ kho bên trong `reserve()` vẫn là atomic UPDATE (hoặc cổng Redis của cách 5 đặt phía trước). Reservation chỉ thêm vào vòng đời, thời hạn và tính idempotent.
+
+**Note**: Với một SKU cực nóng, row của cách 2 vẫn là điểm nghẽn. Hướng nâng cao hơn nữa là **chia tồn kho thành nhiều bucket** (ví dụ 100 sản phẩm chia thành 10 dòng, mỗi dòng 10 cái), request được route vào một bucket ngẫu nhiên và thử bucket khác khi hết. Nó giảm tranh chấp trên một dòng nhưng làm logic "còn bao nhiêu hàng" phức tạp hơn, nên chỉ nên làm khi đo được rằng một row thật sự là nút cổ chai.
+
+<p align="center">
+  <img
+    src="/static/img/posts/how-to-solve-inventory-reservation-in-an-ecommerce-application/image_6.svg"
+    alt="Sơ đồ vòng đời reservation: HELD chuyển sang CONFIRMED khi thanh toán thành công, hoặc sang RELEASED/EXPIRED khi huỷ hoặc quá hạn và trả hàng về kho"
+    title="Cách 6: reservation có TTL"
+  />
+</p>
+<p align="center">
+  Cách 6: reservation là một state machine, HELD chỉ có thể đi tiếp một lần sang CONFIRMED hoặc
+  RELEASED/EXPIRED
+</p>
+
+# 9. - Test: bắn 200 request vào 100 sản phẩm
+
+Viết code xong thì phải thử. Test dưới đây bắn 200 thread cùng mua 1 sản phẩm của SKU chỉ có 100 cái, dùng `CountDownLatch` để các thread xuất phát cùng lúc:
+
+```java
+@SpringBootTest
+class InventoryConcurrencyTest {
+
+    @Autowired AtomicInventoryService service;       // thay bằng NaiveInventoryService để so sánh
+    @Autowired InventoryRepository inventoryRepository;
+    @Autowired JdbcTemplate jdbcTemplate;
+
+    // Đưa kho về 100 trước mỗi lần chạy để các lần test không ảnh hưởng nhau
+    @BeforeEach
+    void resetStock() {
+        jdbcTemplate.update("UPDATE inventory SET available = 100 WHERE sku = 'HEADPHONE-01'");
+    }
+
+    @Test
+    void shouldNotOversell() throws Exception {
+        int threads = 200;
+        ExecutorService pool = Executors.newFixedThreadPool(threads);
+        CountDownLatch start = new CountDownLatch(1);
+        AtomicInteger success = new AtomicInteger();
+        AtomicInteger soldOut = new AtomicInteger();
+        AtomicInteger errors = new AtomicInteger();
+
+        List<Future<?>> futures = new ArrayList<>();
+        for (int i = 0; i < threads; i++) {
+            futures.add(pool.submit(() -> {
+                start.await();                       // chờ tín hiệu để cùng chạy
+                try {
+                    service.reserve("HEADPHONE-01", 1);
+                    success.incrementAndGet();
+                } catch (OutOfStockException e) {
+                    soldOut.incrementAndGet();
+                } catch (Exception e) {
+                    // Lỗi khác (hết connection, optimistic lock sau khi retry hết lượt, vi phạm CHECK...)
+                    errors.incrementAndGet();
+                }
+                return null;
+            }));
+        }
+
+        start.countDown();
+        for (Future<?> f : futures) f.get();
+        pool.shutdown();
+
+        int left = inventoryRepository.findById("HEADPHONE-01").orElseThrow().getAvailable();
+        System.out.printf("success=%d, soldOut=%d, errors=%d, available=%d%n",
+                success.get(), soldOut.get(), errors.get(), left);
+
+        // Bất biến quan trọng nhất: số đơn thành công và số hàng còn lại phải khớp với tồn kho ban đầu
+        assertThat(success.get() + left).isEqualTo(100);
+        assertThat(left).isGreaterThanOrEqualTo(0);
+    }
+}
+```
+
+**Note**: HikariCP mặc định chỉ có 10 connection (`maximumPoolSize`), trong khi test có 200 thread. Các thread còn lại sẽ xếp hàng chờ connection, test vẫn chạy được nhưng chậm hơn. Anh em có thể tăng `spring.datasource.hikari.maximum-pool-size` khi chạy test để mô phỏng tranh chấp thật hơn. Vì đã bắt cả `Exception` chung và đếm vào `errors`, các lỗi ngoài ý muốn sẽ không làm test chết lặng lẽ; với cách 4, anh em sẽ thấy `errors` khác 0 vì request hết lượt retry.
+
+Kết quả mong đợi (mình chưa chạy test này, đây là suy ra từ logic của từng cách):
+
+- Với cách 2, đúng 100 request thành công, 100 request nhận `OutOfStockException`, `errors` bằng 0 và `available` về 0.
+
+- Với `NaiveInventoryService` ở cách 1 (nhớ dùng entity `Inventory` không có `@Version`), `success` có thể lớn hơn 100 và `available` không khớp với số đơn đã bán, nên assertion `success + left == 100` sẽ fail. Con số cụ thể thay đổi mỗi lần chạy vì nó phụ thuộc vào cách các thread đan xen nhau. Đó chính là oversell.
+
+# 10. - So sánh các cách tiếp cận
+
+| Cách tiếp cận | Chống oversell | Chịu tải cao (hot SKU) | Độ phức tạp | Giữ chỗ có thời hạn | Dùng khi |
+| --- | --- | --- | --- | --- | --- |
+| 1. Đọc rồi trừ | Không | Không | Thấp | Không | Không bao giờ dùng cho hàng có giới hạn |
+| 2. Atomic UPDATE | Có | Một phần (xếp hàng trên 1 row lock) | Thấp | Không | Mặc định, điểm bắt đầu cho hầu hết hệ thống |
+| 3. Pessimistic lock | Có | Không (giữ lock lâu hơn) | Trung bình | Không | Logic phức tạp, cần đọc trước khi quyết định |
+| 4. Optimistic lock | Có | Không (retry bão hoà khi xung đột nhiều) | Trung bình | Không | Xung đột hiếm, sản phẩm bình thường |
+| 5. Redis Lua + DB | Có (nhờ DB là chốt chặn) | Có | Cao | Không | Flash sale, cần chặn sớm request hết hàng |
+| 6. Reservation có TTL | Có (xây trên cách 2 hoặc 5) | Một phần (tuỳ tầng trừ kho bên dưới) | Cao | Có | Có bước thanh toán giữa lúc đặt và lúc chốt đơn |
+
+<p align="center">
+  <img
+    src="/static/img/posts/how-to-solve-inventory-reservation-in-an-ecommerce-application/image_10.svg"
+    alt="Ma trận so sánh 6 cách tiếp cận theo bốn tiêu chí: chống oversell, chịu tải hot SKU, độ phức tạp, giữ chỗ có thời hạn, tô màu xanh, vàng, đỏ"
+    title="Ma trận so sánh các cách tiếp cận"
+  />
+</p>
+<p align="center">
+  Ma trận so sánh nhanh: xanh là đáp ứng tốt, vàng là một phần hoặc có điều kiện, đỏ là không đáp
+  ứng hoặc phức tạp
+</p>
+
+=> Cách 6 không đứng một mình mà là lớp bổ sung vòng đời lên trên cách 2 hoặc cách 5, nên cột "Chịu tải cao" của nó phụ thuộc vào tầng trừ kho phía dưới.
+
+# 11. - Kết luận & tổng kết
+
+Quay lại câu hỏi đầu bài: làm sao để 20.000 người tranh 100 sản phẩm mà không bán lố?
+
+- **Gốc của oversell là check-then-act**: đọc ở application rồi mới ghi. Bất kỳ cách nào để hai bước đó tách rời nhau đều có race condition.
+
+- **Atomic UPDATE có điều kiện (cách 2) là nền tảng**: gộp check và trừ vào một câu lệnh, kèm `CHECK (available >= 0)` làm chốt chặn cuối. Đa số hệ thống dừng ở đây là đủ.
+
+- **Pessimistic và optimistic lock** là công cụ cho logic phức tạp hơn, nhưng đều không phải câu trả lời cho SKU bị tranh chấp nặng.
+
+- **Redis Lua** giúp chặn sớm request chắc chắn thất bại, đổi lại phải vận hành thêm và đối soát với DB.
+
+- **Reservation có TTL** giải quyết vế còn lại của bài toán: hàng bị giữ mà không thanh toán, retry và idempotency.
+
+Lời khuyên của mình: đừng nhảy ngay tới Redis hay bucket, cứ đi theo sơ đồ dưới đây.
+
+<p align="center">
+  <img
+    src="/static/img/posts/how-to-solve-inventory-reservation-in-an-ecommerce-application/image_11.svg"
+    alt="Sơ đồ chọn cách tiếp cận: bắt đầu từ atomic UPDATE, thêm pessimistic lock nếu logic phức tạp, thêm reservation TTL nếu có bước thanh toán, thêm Redis Lua khi đo được database là nút cổ chai"
+    title="Chọn cách tiếp cận nào"
+  />
+</p>
+<p align="center">
+  Bắt đầu với cách 2, thêm reservation khi có bước thanh toán, chỉ thêm Redis khi đo được database là
+  nút cổ chai
+</p>
+
+Bài toán tương tự về nguyên tắc "đẩy đảm bảo đúng đắn xuống tầng dữ liệu" anh em có thể đọc thêm ở đây:
+
+- [https://davidnguyenblog.vercel.app/blog/how-to-prevent-duplicate-username-at-scale](https://davidnguyenblog.vercel.app/blog/how-to-prevent-duplicate-username-at-scale)
+
+Hẹn gặp lại anh em ở những dự án tiếp theo – Happy Coding!

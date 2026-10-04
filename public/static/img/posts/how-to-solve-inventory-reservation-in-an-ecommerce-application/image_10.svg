@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 470" role="img" aria-label="Ma trận so sánh 6 cách tiếp cận theo chống oversell, chịu tải hot SKU, độ phức tạp và giữ chỗ có thời hạn">
+  <style>
+    text{font-family:Helvetica,Arial,sans-serif;font-size:15px;fill:#1E293B}
+    .s{font-size:13px;fill:#475569}
+    .m{text-anchor:middle}
+    .h{font-weight:bold}
+    .ok{fill:#DCFCE7;stroke:#16A34A;stroke-width:1.5}
+    .no{fill:#FEE2E2;stroke:#DC2626;stroke-width:1.5}
+    .wn{fill:#FEF3C7;stroke:#D97706;stroke-width:1.5}
+    .hd{fill:#DBEAFE;stroke:#2563EB;stroke-width:1.5}
+    .rw{fill:#F1F5F9;stroke:#94A3B8;stroke-width:1.5}
+  </style>
+  <rect width="900" height="470" fill="#F8FAFC"/>
+  <rect x="20" y="20" width="230" height="50" class="hd"/><text x="135" y="50" class="m h">Cách tiếp cận</text>
+  <rect x="250" y="20" width="160" height="50" class="hd"/><text x="330" y="50" class="m h">Chống oversell</text>
+  <rect x="410" y="20" width="190" height="50" class="hd"/><text x="505" y="50" class="m h">Chịu tải hot SKU</text>
+  <rect x="600" y="20" width="140" height="50" class="hd"/><text x="670" y="50" class="m h">Độ phức tạp</text>
+  <rect x="740" y="20" width="140" height="50" class="hd"/><text x="810" y="50" class="m h">Giữ chỗ TTL</text>
+
+  <rect x="20" y="70" width="230" height="56" class="rw"/><text x="135" y="104" class="m">1. Đọc rồi trừ</text>
+  <rect x="250" y="70" width="160" height="56" class="no"/><text x="330" y="104" class="m">Không</text>
+  <rect x="410" y="70" width="190" height="56" class="no"/><text x="505" y="104" class="m">Không</text>
+  <rect x="600" y="70" width="140" height="56" class="ok"/><text x="670" y="104" class="m">Thấp</text>
+  <rect x="740" y="70" width="140" height="56" class="no"/><text x="810" y="104" class="m">Không</text>
+
+  <rect x="20" y="126" width="230" height="56" class="rw"/><text x="135" y="160" class="m">2. Atomic UPDATE</text>
+  <rect x="250" y="126" width="160" height="56" class="ok"/><text x="330" y="160" class="m">Có</text>
+  <rect x="410" y="126" width="190" height="56" class="wn"/><text x="505" y="160" class="m">Một phần</text>
+  <rect x="600" y="126" width="140" height="56" class="ok"/><text x="670" y="160" class="m">Thấp</text>
+  <rect x="740" y="126" width="140" height="56" class="no"/><text x="810" y="160" class="m">Không</text>
+
+  <rect x="20" y="182" width="230" height="56" class="rw"/><text x="135" y="216" class="m">3. Pessimistic lock</text>
+  <rect x="250" y="182" width="160" height="56" class="ok"/><text x="330" y="216" class="m">Có</text>
+  <rect x="410" y="182" width="190" height="56" class="no"/><text x="505" y="216" class="m">Không</text>
+  <rect x="600" y="182" width="140" height="56" class="wn"/><text x="670" y="216" class="m">Trung bình</text>
+  <rect x="740" y="182" width="140" height="56" class="no"/><text x="810" y="216" class="m">Không</text>
+
+  <rect x="20" y="238" width="230" height="56" class="rw"/><text x="135" y="272" class="m">4. Optimistic lock</text>
+  <rect x="250" y="238" width="160" height="56" class="ok"/><text x="330" y="272" class="m">Có</text>
+  <rect x="410" y="238" width="190" height="56" class="no"/><text x="505" y="272" class="m">Không</text>
+  <rect x="600" y="238" width="140" height="56" class="wn"/><text x="670" y="272" class="m">Trung bình</text>
+  <rect x="740" y="238" width="140" height="56" class="no"/><text x="810" y="272" class="m">Không</text>
+
+  <rect x="20" y="294" width="230" height="56" class="rw"/><text x="135" y="328" class="m">5. Redis Lua + DB</text>
+  <rect x="250" y="294" width="160" height="56" class="ok"/><text x="330" y="328" class="m">Có</text>
+  <rect x="410" y="294" width="190" height="56" class="ok"/><text x="505" y="328" class="m">Có</text>
+  <rect x="600" y="294" width="140" height="56" class="no"/><text x="670" y="328" class="m">Cao</text>
+  <rect x="740" y="294" width="140" height="56" class="no"/><text x="810" y="328" class="m">Không</text>
+
+  <rect x="20" y="350" width="230" height="56" class="rw"/><text x="135" y="384" class="m">6. Reservation TTL</text>
+  <rect x="250" y="350" width="160" height="56" class="ok"/><text x="330" y="384" class="m">Có</text>
+  <rect x="410" y="350" width="190" height="56" class="wn"/><text x="505" y="378" class="m">Một phần</text><text x="505" y="396" class="m s">tuỳ tầng trừ kho</text>
+  <rect x="600" y="350" width="140" height="56" class="no"/><text x="670" y="384" class="m">Cao</text>
+  <rect x="740" y="350" width="140" height="56" class="ok"/><text x="810" y="384" class="m">Có</text>
+
+  <rect x="20" y="420" width="22" height="22" class="ok"/><text x="50" y="437" class="s">Tốt</text>
+  <rect x="100" y="420" width="22" height="22" class="wn"/><text x="130" y="437" class="s">Trung bình, có điều kiện</text>
+  <rect x="320" y="420" width="22" height="22" class="no"/><text x="350" y="437" class="s">Không đáp ứng hoặc phức tạp</text>
+</svg>

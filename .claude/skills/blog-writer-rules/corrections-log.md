@@ -5,4 +5,6 @@ Newest first. One entry per correction.
 Format:
 `YYYY-MM-DD | W-xx (new|changed|removed) | what was wrong | what the rule says now`
 
+2026-10-04 | W-52 (new) | Posts explained flows and comparisons mostly in prose | Prefer flow/sequence/comparison diagrams over paragraphs; add the tag and list it under "Images needed"
+2026-10-04 | W-14 (new) | Post used the word "ngây thơ" for the simplest approach | Never use it; say "cơ bản", "basic" or "đơn giản"
 2026-10-02 | W-01..W-70 (new) | Initial seed derived from existing posts (RSQL, n8n, duplicate-username, AI posts) | Baseline rules

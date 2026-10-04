@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 470" role="img" aria-label="Request đi qua Redis Lua script trước, chỉ request thành công mới xuống database, lỗi DB thì hoàn lại Redis">
+  <style>
+    text{font-family:Helvetica,Arial,sans-serif;font-size:15px;fill:#1E293B}
+    .s{font-size:14px;fill:#475569}
+    .m{text-anchor:middle}
+    .bx{fill:#DBEAFE;stroke:#2563EB;stroke-width:2}
+    .ok{fill:#DCFCE7;stroke:#16A34A;stroke-width:2}
+    .no{fill:#FEE2E2;stroke:#DC2626;stroke-width:2}
+    .wn{fill:#FEF3C7;stroke:#D97706;stroke-width:2}
+    .ar{stroke:#64748B;stroke-width:2;fill:none;marker-end:url(#a)}
+  </style>
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#64748B"/></marker></defs>
+  <rect width="800" height="470" fill="#F8FAFC"/>
+  <rect x="20" y="60" width="130" height="60" rx="10" class="bx"/><text x="85" y="95" class="m">Request</text>
+  <line x1="152" y1="90" x2="208" y2="90" class="ar"/>
+  <rect x="210" y="40" width="230" height="100" rx="10" class="wn"/>
+  <text x="325" y="72" class="m" style="font-weight:bold">Redis Lua script</text>
+  <text x="325" y="97" class="m s">stock &gt;= qty ?</text>
+  <text x="325" y="118" class="m s">nếu đủ: DECRBY, nguyên tử</text>
+
+  <line x1="442" y1="90" x2="528" y2="90" class="ar"/><text x="485" y="80" class="m s">đủ</text>
+  <rect x="530" y="40" width="250" height="100" rx="10" class="bx"/>
+  <text x="655" y="72" class="m" style="font-weight:bold">Database</text>
+  <text x="655" y="97" class="m s">atomic UPDATE</text>
+  <text x="655" y="118" class="m s">available &gt;= qty (nguồn chân lý)</text>
+
+  <line x1="325" y1="142" x2="325" y2="208" class="ar"/><text x="345" y="180" class="s">không đủ</text>
+  <rect x="210" y="210" width="230" height="64" rx="10" class="no"/>
+  <text x="325" y="238" class="m" style="font-weight:bold">OutOfStockException</text>
+  <text x="325" y="259" class="m s">không chạm database</text>
+
+  <line x1="655" y1="142" x2="655" y2="208" class="ar" style="stroke:#16A34A"/><text x="675" y="180" class="s">thành công</text>
+  <rect x="530" y="210" width="250" height="64" rx="10" class="ok"/>
+  <text x="655" y="238" class="m" style="font-weight:bold">Giữ chỗ thành công</text>
+  <text x="655" y="259" class="m s">tiếp tục tạo đơn</text>
+
+  <path d="M780 100 L795 100 L795 330 L600 330" fill="none" stroke="#DC2626" stroke-width="2" marker-end="url(#a)"/>
+  <text x="700" y="322" class="m s">DB lỗi</text>
+  <rect x="330" y="300" width="270" height="64" rx="10" class="wn"/>
+  <text x="465" y="328" class="m" style="font-weight:bold">Rollback Redis</text>
+  <text x="465" y="349" class="m s">INCRBY trả lại hàng đã trừ</text>
+
+  <rect x="20" y="400" width="760" height="50" rx="10" style="fill:#F1F5F9;stroke:#94A3B8;stroke-width:1.5"/>
+  <text x="400" y="430" class="m s">Redis chặn phần lớn request hết hàng. Database vẫn giữ atomic UPDATE và CHECK làm chốt chặn cuối.</text>
+</svg>

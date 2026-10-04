@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 420" role="img" aria-label="Vòng đời reservation: HELD chuyển sang CONFIRMED, RELEASED hoặc EXPIRED">
+  <style>
+    text{font-family:Helvetica,Arial,sans-serif;font-size:15px;fill:#1E293B}
+    .s{font-size:14px;fill:#475569}
+    .m{text-anchor:middle}
+    .bx{fill:#DBEAFE;stroke:#2563EB;stroke-width:2}
+    .ok{fill:#DCFCE7;stroke:#16A34A;stroke-width:2}
+    .no{fill:#FEE2E2;stroke:#DC2626;stroke-width:2}
+    .wn{fill:#FEF3C7;stroke:#D97706;stroke-width:2}
+    .ar{stroke:#64748B;stroke-width:2;fill:none;marker-end:url(#a)}
+  </style>
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#64748B"/></marker></defs>
+  <rect width="800" height="420" fill="#F8FAFC"/>
+  <circle cx="40" cy="210" r="10" fill="#1E293B"/>
+  <line x1="52" y1="210" x2="148" y2="210" class="ar"/>
+  <text x="100" y="190" class="m s">reserve</text>
+  <text x="100" y="236" class="m s">available -= qty</text>
+
+  <rect x="150" y="170" width="170" height="80" rx="12" class="wn"/>
+  <text x="235" y="205" class="m" style="font-weight:bold">HELD</text>
+  <text x="235" y="228" class="m s">có expires_at</text>
+
+  <line x1="322" y1="190" x2="498" y2="90" class="ar" style="stroke:#16A34A"/>
+  <text x="430" y="125" class="m s" transform="rotate(-29 430 125)">thanh toán thành công</text>
+  <rect x="500" y="50" width="260" height="80" rx="12" class="ok"/>
+  <text x="630" y="85" class="m" style="font-weight:bold">CONFIRMED</text>
+  <text x="630" y="108" class="m s">trở thành đơn hàng</text>
+
+  <line x1="322" y1="210" x2="498" y2="210" class="ar"/>
+  <text x="410" y="200" class="m s">user huỷ</text>
+  <rect x="500" y="170" width="260" height="80" rx="12" class="no"/>
+  <text x="630" y="205" class="m" style="font-weight:bold">RELEASED</text>
+  <text x="630" y="228" class="m s">available += qty</text>
+
+  <line x1="322" y1="230" x2="498" y2="330" class="ar"/>
+  <text x="430" y="300" class="m s" transform="rotate(29 430 300)">job: quá hạn</text>
+  <rect x="500" y="290" width="260" height="80" rx="12" class="no"/>
+  <text x="630" y="325" class="m" style="font-weight:bold">EXPIRED</text>
+  <text x="630" y="348" class="m s">available += qty</text>
+
+  <text x="235" y="390" class="m s">Mỗi chuyển trạng thái là UPDATE ... WHERE status = 'HELD': chỉ một bên thắng</text>
+</svg>
