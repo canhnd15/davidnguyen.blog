@@ -1,0 +1,22 @@
+diff --git a/node_modules/@contentlayer/core/dist/generation/generate-dotpkg.js b/node_modules/@contentlayer/core/dist/generation/generate-dotpkg.js
+index 0e9f9a2..3c6db75 100644
+--- a/node_modules/@contentlayer/core/dist/generation/generate-dotpkg.js
++++ b/node_modules/@contentlayer/core/dist/generation/generate-dotpkg.js
+@@ -43,9 +43,15 @@ const writeFilesForCache = ({ config, cache, schemaDef, targetPath, generationOp
+     const allDocuments = allCacheItems.map((_) => _.document);
+     const documentDefs = Object.values(schemaDef.documentTypeDefMap);
+     const [nodeVersionMajor, nodeVersionMinor] = yield* $(T.succeedWith(() => process.versions.node.split('.').map((_) => parseInt(_, 10))));
+-    // NOTE Type assert statements for `.json` files are neccessary from Node v16.14 onwards
++    // NOTE Type assert/with statements for `.json` files are neccessary from Node v16.14 onwards.
++    // Node 22+ removed the `assert` keyword entirely (hard syntax error), so Node >=20.10 and >=18.20
++    // use the `with` keyword instead; older supported versions fall back to `assert`.
+     const needsJsonAssertStatement = nodeVersionMajor > 16 || (nodeVersionMajor === 16 && nodeVersionMinor >= 14);
+-    const assertStatement = needsJsonAssertStatement ? ` assert { type: 'json' }` : '';
++    const supportsWithKeyword = nodeVersionMajor > 20 ||
++        (nodeVersionMajor === 20 && nodeVersionMinor >= 10) ||
++        (nodeVersionMajor === 18 && nodeVersionMinor >= 20);
++    const assertKeyword = supportsWithKeyword ? 'with' : 'assert';
++    const assertStatement = needsJsonAssertStatement ? ` ${assertKeyword} { type: 'json' }` : '';
+     const typeNameField = generationOptions.options.fieldOptions.typeFieldName;
+     const dataBarrelFiles = documentDefs.map((docDef) => ({
+         content: makeDataExportFile({
