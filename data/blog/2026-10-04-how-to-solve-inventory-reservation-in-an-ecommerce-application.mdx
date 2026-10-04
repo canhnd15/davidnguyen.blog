@@ -3,7 +3,7 @@ title: 'Làm sao xử lý Inventory Reservation khi flash sale mà không bị o
 date: '2026-10-04'
 lastmod: '2026-10-04'
 tags: ['E-commerce', 'High Concurrency', 'Java', 'Spring Boot', 'software-architecture']
-draft: true
+draft: false
 summary: Trong bài viết này, mình sẽ cùng anh em tìm hiểu bài toán Inventory Reservation (giữ chỗ tồn kho) trong một hệ thống e-commerce có lượng truy cập đồng thời rất lớn, đặc biệt là lúc flash sale. Mình đi từ cách viết cơ bản nhất (đọc stock rồi trừ) và chỉ ra vì sao nó bị oversell, rồi lần lượt qua atomic UPDATE, pessimistic lock, optimistic lock, Redis Lua script và reservation có TTL, kèm code Java & Spring Boot cho từng cách và một bảng so sánh để anh em chọn đúng giải pháp cho hệ thống của mình.
 images: ['/static/img/cover/posts/inventory-reservation.svg']
 layout: PostLayout
