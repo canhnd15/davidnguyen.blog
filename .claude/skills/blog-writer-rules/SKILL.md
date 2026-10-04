@@ -13,7 +13,8 @@ The rules live in `rules.md` (IDs `W-xx`). Read `rules.md` and `examples.md` in 
 3. Check which tags and related posts already exist (`Grep` over `data/blog/`).
 4. Verify technical claims against the brief's references and official docs. Mark unverified claims `TODO(verify)`.
 5. Write `data/blog/YYYY-MM-DD-<slug>.mdx` following the rules.
-6. Re-read your draft against `rules.md`, and fix violations before finishing.
+6. If the brief's "Source repo" field is `generate`, follow the Demo code rules (W-80..W-84) to create and push the demo, then link it per W-24.
+7. Re-read your draft against `rules.md`, and fix violations before finishing.
 
 ## Output contract
 Finish with a short summary containing:

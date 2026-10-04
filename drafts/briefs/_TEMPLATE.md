@@ -26,7 +26,7 @@
 -
 
 ## Source repo
-<!-- GitHub demo URL, or "none" -->
+<!-- A GitHub demo URL, "generate" (writer creates runnable demo code and pushes it to github.com/canhnd15/blog-demos), or "none" -->
 
 ## Must include
 -

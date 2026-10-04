@@ -25,7 +25,7 @@ If the rule has a reviewer counterpart, update the matching R-xx in `blog-review
 - **W-21** Top-level headings are numbered: `# 1. Title`, with `### 1.1 - Subtitle` subsections. Skip `##`.
 - **W-22** Section 1 opens with a real pain point or a naive example, then the transition `=> Trong bài viết này, mình sẽ cùng anh em ...`.
 - **W-23** Then, in order: concepts/tools, step-by-step implementation, demo/test with output, `# N. - Kết luận & tổng kết`.
-- **W-24** If the brief gives a source repo, add a "Source Code" section with the link before the conclusion. If none, omit it.
+- **W-24** If the brief's "Source repo" field is a URL, add a "Source Code" section with that link before the conclusion. If it is `generate`, follow the Demo code rules (W-80..W-84) to create it, then link the result the same way. If `none`, omit the section.
 - **W-25** The conclusion is a recap paragraph or bullets. Optionally link related posts as `https://davidnguyenblog.vercel.app/blog/<slug>`; verify that each slug exists under `data/blog/`.
 - **W-26** The last line is exactly: `Hẹn gặp lại anh em ở những dự án tiếp theo – Happy Coding! 🚀`
 
@@ -51,3 +51,10 @@ If the rule has a reviewer counterpart, update the matching R-xx in `blog-review
 
 ## Length
 - **W-70** 1,000–2,500 words unless the brief sets a target.
+
+## Demo code
+- **W-80** Trigger: only when the brief's "Source repo" field is exactly `generate`. If it's a URL, use it as-is (no demo generation). If `none`, skip this section entirely.
+- **W-81** Location: maintain a local clone of `https://github.com/canhnd15/blog-demos` at `~/Desktop/code/blog-demos` (clone it if missing, otherwise `git pull origin main` first). Create a new folder named exactly `<slug>/` inside it.
+- **W-82** Content: complete, runnable code in the post's stack (same bar as W-40 — no pseudo-code), plus a `README.md` with setup and run instructions. Never include secrets, credentials or proprietary data.
+- **W-83** Publish: commit with message `demo: add <slug>`, push to `main` on `blog-demos` only. Never force-push, never touch any folder but `<slug>/`, never create or push to any other repo.
+- **W-84** Link back: point the post's "Source Code" section (W-24) to `https://github.com/canhnd15/blog-demos/tree/main/<slug>`.

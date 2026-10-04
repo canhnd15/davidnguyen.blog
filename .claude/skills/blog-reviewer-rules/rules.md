@@ -32,7 +32,8 @@ Default severity is in parentheses: Blocker (must fix before publishing), Major 
 - **R-30** (Major) Internal links to `davidnguyenblog.vercel.app/blog/<slug>` point to existing slugs in `data/blog/`. [W-25]
 - **R-31** (Major) Image tags use the centered format with a caption; paths follow `/static/img/posts/<slug>/`. [W-50]
 - **R-32** (Minor) Every placeholder image is listed in the writer's "Images needed". [W-51]
-- **R-33** (Major) A Source Code section exists iff the brief has a repo. [W-24]
+- **R-33** (Major) A Source Code section exists iff the brief has a repo or says `generate`. [W-24]
+- **R-34** (Major) When the brief's Source repo field is `generate`, the linked `blog-demos/<slug>` URL resolves (check with WebFetch) and the code it shows is consistent with what's in the post. [W-80..W-84]
 
 ## Readability
 - **R-40** (Major) Intro hooks within the first 3 sentences; no padding paragraphs.
