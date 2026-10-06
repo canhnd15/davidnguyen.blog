@@ -3,7 +3,7 @@ title: 'Làm sao tránh tạo trùng Order khi flash sale trong hệ thống e-c
 date: '2026-10-06'
 lastmod: '2026-10-06'
 tags: ['E-commerce', 'High Concurrency', 'Java', 'Spring Boot', 'software-architecture']
-draft: true
+draft: false
 summary: Trong bài viết này, mình sẽ cùng anh em tìm hiểu bài toán tạo trùng Order (duplicate order) trong một hệ thống e-commerce có rất nhiều người dùng truy cập đồng thời, đặc biệt là lúc flash sale. Mình đi từ nguyên nhân (user bấm đúp, refresh, client retry, message redelivery cho tới bot và replay attack), hậu quả khi đơn bị trùng, rồi lần lượt qua 6 cách xử lý từ cơ bản đến nâng cao - disable nút bấm, check-then-insert, Idempotency-Key với UNIQUE constraint, bảng idempotency record, Redis SET NX và checkout token dùng một lần - kèm code Java & Spring Boot cho từng cách và một bảng so sánh để anh em chọn đúng giải pháp.
 images: ['/static/img/cover/posts/order-duplication.svg']
 layout: PostLayout
