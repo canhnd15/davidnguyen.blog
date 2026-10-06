@@ -6,7 +6,7 @@ Default severity is in parentheses: Blocker (must fix before publishing), Major 
 ## Front matter and file
 - **R-01** (Blocker) All eight fields exist in order and are valid YAML; the title is quoted. [W-02, W-08]
 - **R-02** (Major) `date` equals `lastmod` and matches the filename date format. [W-03]
-- **R-03** (Blocker) `draft: true` on a new post. Published posts (reviewing an existing post) are exempt. [W-04]
+- **R-03** (Blocker) `draft: false` on every post. A `draft: true` is a violation. [W-04]
 - **R-04** (Major) `summary` starts with "Trong bài viết này, mình sẽ cùng anh em ..." and states the problem. [W-05]
 - **R-05** (Major) `tags` has exactly one lowercase category tag from the allowed list; other tags match existing casing in `data/blog/`. [W-07]
 - **R-06** (Minor) The cover path follows `/static/img/cover/posts/` and the file exists or is listed as pending. [W-06]

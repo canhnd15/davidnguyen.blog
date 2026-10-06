@@ -7,7 +7,7 @@ If the rule has a reviewer counterpart, update the matching R-xx in `blog-review
 - **W-01** File path: `data/blog/YYYY-MM-DD-kebab-slug.mdx`. The date is today's date unless the brief says otherwise. The slug is short, English, kebab-case.
 - **W-02** Front matter fields, in this order: `title`, `date`, `lastmod`, `tags`, `draft`, `summary`, `images`, `layout`.
 - **W-03** `date` and `lastmod` are identical (`'YYYY-MM-DD'`, quoted). Never copy `lastmod` from another post.
-- **W-04** `draft: true` always. The author flips it when publishing.
+- **W-04** `draft: false` always, on every new post and every revision. Never set `draft: true`.
 - **W-05** `summary` is one paragraph that starts with "Trong bài viết này, mình sẽ cùng anh em tìm hiểu ...". It states the problem and what the reader gets.
 - **W-06** `images: ['/static/img/cover/posts/<name>.png']` and `layout: PostLayout`. The cover is not created; list it in the to-do list.
 - **W-07** `tags`: technology tags (proper case, e.g. `Spring Boot`, `Redis`) plus exactly one lowercase category tag from: `spring-framework`, `java`, `devops`, `cloud`, `software-architecture`, `testing`. Reuse tags already used in `data/blog/` before inventing new ones.
