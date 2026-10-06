@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 440" role="img" aria-label="Checkout token: server cấp token gắn user và cart, GETDEL tiêu thụ token một lần, token giả hoặc đã dùng bị từ chối với 400 hoặc trả order đã có">
+  <style>
+    text{font-family:Helvetica,Arial,sans-serif;font-size:15px;fill:#1E293B}
+    .s{font-size:14px;fill:#475569}
+    .c{font-size:13px;fill:#1E293B}
+    .m{text-anchor:middle}
+    .bx{fill:#DBEAFE;stroke:#2563EB;stroke-width:2}
+    .ok{fill:#DCFCE7;stroke:#16A34A;stroke-width:2}
+    .wn{fill:#FEF3C7;stroke:#D97706;stroke-width:2}
+    .rd{fill:#FEE2E2;stroke:#DC2626;stroke-width:2}
+    .ll{stroke:#94A3B8;stroke-width:1.5;stroke-dasharray:6 5;fill:none}
+    .tm{stroke:#64748B;stroke-width:2;fill:none;marker-end:url(#a)}
+  </style>
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#64748B"/></marker></defs>
+  <rect width="800" height="440" fill="#F8FAFC"/>
+
+  <text x="205" y="22" class="m" style="font-weight:bold">1. Mở trang checkout</text>
+  <rect x="30" y="34" width="350" height="40" rx="8" class="bx"/><text x="205" y="59" class="m s">User mở trang checkout</text>
+  <path d="M205 74 L205 92" class="tm"/>
+  <rect x="30" y="94" width="350" height="60" rx="8" class="bx"/>
+  <text x="205" y="120" class="m s">Server cấp token (UUID), lưu vào Redis</text>
+  <text x="205" y="140" class="m s">gắn user và cart, TTL 15 phút</text>
+
+  <text x="595" y="22" class="m" style="font-weight:bold">2. Bấm Đặt hàng</text>
+  <rect x="420" y="34" width="350" height="40" rx="8" class="bx"/><text x="595" y="59" class="m s">POST /orders kèm token</text>
+  <path d="M380 124 L400 124 L400 54 L418 54" class="tm"/>
+  <path d="M595 74 L595 92" class="tm"/>
+  <rect x="420" y="94" width="350" height="60" rx="8" class="wn"/>
+  <text x="595" y="120" class="m">GETDEL checkout-token</text>
+  <text x="595" y="140" class="m s">lấy và xóa trong một lệnh nguyên tử</text>
+
+  <path d="M595 154 L595 190 L145 190 L145 226" class="tm"/>
+  <path d="M400 190 L400 226" class="tm"/>
+  <path d="M595 190 L655 190 L655 226" class="tm"/>
+
+  <rect x="30" y="228" width="230" height="74" rx="8" class="ok"/>
+  <text x="145" y="254" class="m s">Khớp user và cart</text><text x="145" y="274" class="m s">tạo order, HTTP 200</text>
+  <rect x="285" y="228" width="230" height="74" rx="8" class="wn"/>
+  <text x="400" y="254" class="m s">Token đã dùng, đã có order</text><text x="400" y="274" class="m s">trả order cũ</text>
+  <rect x="540" y="228" width="230" height="74" rx="8" class="rd"/>
+  <text x="655" y="254" class="m s">Token giả hoặc hết hạn</text><text x="655" y="274" class="m s">HTTP 400</text>
+
+  <path d="M145 302 L145 336" class="tm"/>
+  <rect x="30" y="338" width="230" height="40" rx="8" class="bx"/><text x="145" y="363" class="m s">DB UNIQUE là chốt cuối</text>
+  <text x="400" y="412" class="m s">Token là idempotency key ở DB, nên Redis mất dữ liệu vẫn không tạo đơn trùng</text>
+</svg>

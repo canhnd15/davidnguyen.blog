@@ -1,0 +1,562 @@
+---
+title: 'Làm sao tránh tạo trùng Order khi flash sale trong hệ thống e-commerce?'
+date: '2026-10-06'
+lastmod: '2026-10-06'
+tags: ['E-commerce', 'High Concurrency', 'Java', 'Spring Boot', 'software-architecture']
+draft: false
+summary: Trong bài viết này, mình sẽ cùng anh em tìm hiểu bài toán tạo trùng Order (duplicate order) trong một hệ thống e-commerce có rất nhiều người dùng truy cập đồng thời, đặc biệt là lúc flash sale. Mình đi từ nguyên nhân (user bấm đúp, refresh, client retry, message redelivery cho tới bot và replay attack), hậu quả khi đơn bị trùng, rồi lần lượt qua 6 cách xử lý từ cơ bản đến nâng cao - disable nút bấm, check-then-insert, Idempotency-Key với UNIQUE constraint, bảng idempotency record, Redis SET NX và checkout token dùng một lần - kèm code Java & Spring Boot cho từng cách và một bảng so sánh để anh em chọn đúng giải pháp.
+images: ['/static/img/cover/posts/order-duplication.svg']
+layout: PostLayout
+---
+
+<TOCInline toc={props.toc} asDisclosure toHeading={3} />
+
+# 1. - Vì sao Order bị tạo trùng và chuyện gì xảy ra khi đó?
+
+Ví dụ lúc 12h00, chị em săn sale. Một người bấm "Đặt hàng", mạng 4G chập chờn, màn hình quay tròn 5 giây không thấy gì. Thế là chị em bấm thêm lần nữa. Cùng lúc đó, mobile app tự retry vì timeout. Sáng hôm sau team CS nhận ticket: **"Tôi chỉ mua 1 cái mà bị trừ tiền 2 lần"**.
+
+Đó là **duplicate order** (đơn hàng trùng): cùng một ý định mua hàng của user nhưng hệ thống tạo ra nhiều hơn một Order. Với lượng user lớn truy cập đồng thời, xác suất này không còn là "hiếm gặp" nữa mà là chuyện chắc chắn xảy ra mỗi ngày.
+
+### 1.1 - Nguyên nhân: từ vô tình đến cố ý
+
+Mình chia nguyên nhân làm hai nhóm:
+
+**Vô tình (hành vi user và hạ tầng):**
+
+- **Bấm đúp / bấm liên tục**: UI không phản hồi ngay nên user bấm lại.
+
+- **Refresh hoặc back lại trang sau khi submit**: trình duyệt gửi lại đúng request POST đó.
+
+- **Client hoặc gateway retry**: request timeout nhưng thực tế server đã xử lý xong. Mobile app, API gateway, service mesh đều có thể tự retry.
+
+- **Message redelivery**: nếu việc tạo đơn đi qua queue (Kafka, RabbitMQ...) thì cơ chế at-least-once delivery có thể giao cùng một message hai lần.
+
+- **Nhiều tab, nhiều thiết bị**: user mở hai tab checkout rồi bấm ở cả hai.
+
+**Cố ý (tấn công và lạm dụng):**
+
+- **Bot / script** bắn hàng trăm request song song để "săn" flash sale, mỗi request một mã định danh khác nhau, nên cách chặn theo mã do client gửi lên không còn tác dụng (sẽ nói ở cách 3).
+
+- **Replay attack**: kẻ tấn công bắt được một request hợp lệ rồi phát lại nhiều lần.
+
+- **Race condition có chủ đích**: gửi N request cùng lúc để lọt qua bước kiểm tra "mỗi user chỉ được mua 1 sản phẩm" trước khi bước ghi kịp chạy.
+
+<p align="center">
+  <img
+    src="/static/img/posts/how-to-avoid-duplicating-order-creation-in-an-ecommerce-application/image_1.svg"
+    alt="Sơ đồ các nguyên nhân tạo trùng order: bấm đúp, refresh, client retry, message redelivery, bot và replay attack cùng đi vào API tạo đơn và sinh ra nhiều order cho một lần mua"
+    title="Nguyên nhân tạo trùng order"
+  />
+</p>
+<p align="center">
+  Nhiều nguồn khác nhau cùng đổ vào một API tạo đơn, và mỗi nguồn cần một lớp bảo vệ riêng
+</p>
+
+### 1.2 - Hậu quả khi đơn bị trùng
+
+- **Trừ tiền hai lần**, kéo theo hoàn tiền, khiếu nại và mất niềm tin.
+
+- **Trừ tồn kho hai lần**: hàng bị "ăn" mất, người khác mua không được dù kho còn (xem thêm bài [Inventory Reservation](https://davidnguyenblog.vercel.app/blog/how-to-solve-inventory-reservation-in-an-ecommerce-application)).
+
+- **Giao hàng hai lần** hoặc phải thu hồi đơn, tốn phí vận chuyển.
+
+- **Số liệu sai**: doanh thu, báo cáo, đối soát với cổng thanh toán đều lệch.
+
+- **Tốn công CS và vận hành**: mỗi đơn trùng là một ticket cần người xử lý thủ công.
+
+=> Trong bài viết này (thuộc series **Design an e-commerce system**), mình sẽ cùng anh em đi từ cách làm cơ bản nhất đến nâng cao, mỗi cách đều có code Java & Spring Boot, và cuối bài là bảng so sánh để chọn. Bài dành cho anh em từ mức beginner đến intermediate: biết Spring Boot và JPA cơ bản là đủ.
+
+**Note**: Code trong bài là các đoạn trích. Anh em có thể chạy thẳng project demo đầy đủ ở phần Source Code cuối bài.
+
+# 2. - Chuẩn bị: schema và entity
+
+Cả bài dùng chung bảng `orders` (PostgreSQL):
+
+```sql
+CREATE TABLE orders (
+    id              UUID PRIMARY KEY,
+    user_id         BIGINT      NOT NULL,
+    cart_id         VARCHAR(64) NOT NULL,
+    sku             VARCHAR(64) NOT NULL,
+    qty             INT         NOT NULL,
+    amount          BIGINT      NOT NULL,
+    status          VARCHAR(16) NOT NULL,
+    -- Cho phép NULL: cách 2 không dùng key. Postgres cho phép nhiều NULL trong UNIQUE
+    idempotency_key VARCHAR(64) UNIQUE,
+    created_at      TIMESTAMPTZ NOT NULL
+);
+```
+
+```java
+public record CreateOrderRequest(long userId, String cartId, String sku, int qty, long amount) {
+
+    /** Chuỗi chuẩn hóa để băm nội dung request (dùng ở cách 4) */
+    public String canonical() {
+        return userId + "|" + cartId + "|" + sku + "|" + qty + "|" + amount;
+    }
+}
+```
+
+```java
+@Service
+@RequiredArgsConstructor
+public class OrderCreator {
+
+    private final OrderRepository orderRepository;
+
+    @Transactional
+    public Order create(CreateOrderRequest req, String idempotencyKey) {
+        Order o = new Order();
+        o.setUserId(req.userId());
+        o.setCartId(req.cartId());
+        o.setSku(req.sku());
+        o.setQty(req.qty());
+        o.setAmount(req.amount());
+        o.setStatus("CREATED");
+        o.setIdempotencyKey(idempotencyKey);
+        o.setCreatedAt(Instant.now());
+        // saveAndFlush để lỗi UNIQUE nổ ra ngay trong transaction này
+        return orderRepository.saveAndFlush(o);
+    }
+}
+```
+
+**Note**: Mình bỏ phần `import` và dùng Lombok cho gọn. Entity `Order` map vào bảng `orders` với `id` kiểu UUID sinh bằng `@GeneratedValue(strategy = GenerationType.UUID)`, đầy đủ trong project demo. Trong thực tế bước tạo đơn còn gồm trừ kho (reservation) và các việc khác, mình lược bớt để tập trung vào chuyện chống trùng.
+
+# 3. - Cách 1: Disable nút bấm ở client
+
+Cách đơn giản nhất ai cũng nghĩ tới: user bấm xong thì disable nút, hiện spinner.
+
+```javascript
+// Chỉ là UX: giảm bấm đúp, KHÔNG phải cơ chế bảo vệ
+button.addEventListener('click', async () => {
+  button.disabled = true
+  try {
+    await fetch('/api/orders', { method: 'POST', body: JSON.stringify(order) })
+  } finally {
+    button.disabled = false
+  }
+})
+```
+
+Cách này nên có vì nó cải thiện trải nghiệm. Nhưng nó chỉ chặn được **một** nguyên nhân (bấm đúp trên một tab). Refresh, retry, nhiều tab, bot đều bỏ qua hoàn toàn vì chúng không đi qua JavaScript của anh em.
+
+=> Quy tắc: **không bao giờ tin client**. Mọi cơ chế chống trùng thật sự phải nằm ở server.
+
+<p align="center">
+  <img
+    src="/static/img/posts/how-to-avoid-duplicating-order-creation-in-an-ecommerce-application/image_2.svg"
+    alt="Sơ đồ disable nút bấm chỉ chặn bấm đúp trên một tab, còn refresh, retry của gateway, nhiều tab và bot vẫn đi thẳng tới server"
+    title="Cách 1: disable nút bấm ở client"
+  />
+</p>
+<p align="center">
+  Cách 1: chỉ chặn được bấm đúp trên một tab, mọi nguồn trùng khác vẫn tới được server
+</p>
+
+# 4. - Cách 2: Check-then-insert ở server
+
+Cách "cơ bản" ở phía server: kiểm tra user đã có đơn cho giỏ hàng này chưa, nếu chưa thì tạo.
+
+```java
+@Service
+@RequiredArgsConstructor
+public class NaiveOrderService {
+
+    private final OrderRepository orderRepository;
+    private final OrderCreator creator;
+
+    // Đừng dùng: giữa SELECT và INSERT có khoảng hở
+    @Transactional
+    public Order create(CreateOrderRequest req) {
+        List<Order> existing = orderRepository.findByUserIdAndCartId(req.userId(), req.cartId());
+        if (!existing.isEmpty()) {
+            return existing.get(0);
+        }
+        return creator.create(req, null);
+    }
+}
+```
+
+Với từng request một thì đúng. Nhưng hai request đến cùng lúc thì cả hai đều chạy `SELECT` trước khi bên nào kịp `INSERT`, cả hai đều thấy "chưa có đơn" và cả hai cùng tạo. Đây là **check-then-act race condition**, y hệt bug mình đã phân tích trong bài [duplicate username](https://davidnguyenblog.vercel.app/blog/how-to-prevent-duplicate-username-at-scale). Với mức isolation mặc định của PostgreSQL là [`READ COMMITTED`](https://www.postgresql.org/docs/current/transaction-iso.html), `@Transactional` không cứu được vì transaction này không thấy dòng chưa commit của transaction kia.
+
+<p align="center">
+  <img
+    src="/static/img/posts/how-to-avoid-duplicating-order-creation-in-an-ecommerce-application/image_3.svg"
+    alt="Timeline hai request A và B cùng SELECT thấy chưa có đơn, rồi cùng INSERT, kết quả hai order cho một giỏ hàng"
+    title="Cách 2: check-then-insert"
+  />
+</p>
+<p align="center">
+  Cách 2: hai request cùng thấy chưa có đơn rồi cùng insert, kết quả là hai order
+</p>
+
+=> Lỗi này chỉ lộ ra khi có tải. Test từng request một thì mọi thứ đều "chạy đúng", và đó là lý do nó hay lọt lên production.
+
+# 5. - Cách 3: Idempotency-Key + UNIQUE constraint
+
+Ý tưởng: để database làm trọng tài. Client sinh một **Idempotency-Key** (thường là UUID) cho mỗi ý định mua hàng và gửi kèm trong header. Mọi lần retry của cùng ý định đó dùng **cùng key**. Server lưu key vào cột `UNIQUE`, và constraint đảm bảo chỉ một `INSERT` thắng.
+
+**Note**: **Idempotent** nghĩa là gọi một thao tác nhiều lần cho kết quả giống như gọi một lần. Header `Idempotency-Key` là cách quen thuộc của các API thanh toán, ví dụ [Stripe](https://docs.stripe.com/api/idempotent_requests) cũng dùng đúng tên header này.
+
+```java
+@Service
+@RequiredArgsConstructor
+public class UniqueKeyOrderService {
+
+    private final OrderCreator creator;
+    private final OrderRepository orderRepository;
+
+    // Cố ý KHÔNG có @Transactional: transaction của creator.create() đã rollback khi tới được catch
+    public Order create(CreateOrderRequest req, String key) {
+        try {
+            return creator.create(req, key);
+        } catch (DataIntegrityViolationException ex) {
+            // Request khác cùng key đã thắng, trả về order của nó
+            Order existing = orderRepository.findByIdempotencyKey(key).orElseThrow(() -> ex);
+            if (existing.getUserId() != req.userId()) {
+                throw new IdempotencyConflictException("Key đã được dùng bởi user khác");
+            }
+            return existing;
+        }
+    }
+}
+```
+
+Đây chính là pattern **insert-and-catch** của bài duplicate username: không kiểm tra trước, cứ `INSERT` rồi bắt lỗi trùng. Và vì UNIQUE được database đảm bảo, nó đúng ngay cả khi chạy nhiều instance của service.
+
+Vài điểm anh em cần lưu ý:
+
+- Lỗi UNIQUE làm transaction bị đánh dấu rollback, nên phải bắt ở **bên ngoài** transaction. Đó là lý do `UniqueKeyOrderService` không có `@Transactional`.
+
+- Request thứ hai nhận lại **đúng order của request đầu** thay vì lỗi, nên client retry thoải mái.
+
+- Hạn chế: nếu client gửi **cùng key nhưng nội dung khác** (đổi số lượng chẳng hạn), cách này vẫn trả về order cũ mà không cảnh báo. Cách 4 sẽ xử lý chỗ này.
+
+<p align="center">
+  <img
+    src="/static/img/posts/how-to-avoid-duplicating-order-creation-in-an-ecommerce-application/image_4.svg"
+    alt="Sơ đồ hai request cùng Idempotency-Key: request 1 insert thành công, request 2 vi phạm UNIQUE nên rollback, facade bắt lỗi và trả về order của request 1"
+    title="Cách 3: Idempotency-Key và UNIQUE constraint"
+  />
+</p>
+<p align="center">
+  Cách 3: constraint của database chọn ra người thắng, facade trả lại order đã có cho người đến sau
+</p>
+
+# 6. - Cách 4: Bảng idempotency record
+
+Cách 3 gắn key trực tiếp vào bảng `orders`. Khi hệ thống lớn hơn (nhiều loại thao tác dùng chung cơ chế, cần kiểm tra nội dung request), người ta tách thành một bảng riêng, đúng tinh thần Stripe mô tả: lưu lại kết quả của request đầu tiên theo key, [so sánh tham số của request đến sau với request gốc và báo lỗi nếu khác nhau](https://docs.stripe.com/api/idempotent_requests).
+
+```sql
+CREATE TABLE idempotency_record (
+    idempotency_key VARCHAR(64) PRIMARY KEY,
+    user_id         BIGINT      NOT NULL,
+    request_hash    VARCHAR(64) NOT NULL,   -- SHA-256 của nội dung request
+    order_id        UUID,
+    created_at      TIMESTAMPTZ NOT NULL
+);
+```
+
+```java
+public interface IdempotencyRecordRepository extends JpaRepository<IdempotencyRecord, String> {
+
+    // 1 = mình là người đầu tiên, 0 = key đã tồn tại
+    @Modifying
+    @Query(nativeQuery = true, value = """
+        INSERT INTO idempotency_record (idempotency_key, user_id, request_hash, created_at)
+        VALUES (:key, :userId, :hash, now())
+        ON CONFLICT (idempotency_key) DO NOTHING
+        """)
+    int insertIfAbsent(@Param("key") String key, @Param("userId") long userId, @Param("hash") String hash);
+
+    @Modifying
+    @Query(nativeQuery = true, value = """
+        UPDATE idempotency_record SET order_id = :orderId WHERE idempotency_key = :key
+        """)
+    int attachOrder(@Param("key") String key, @Param("orderId") UUID orderId);
+}
+```
+
+```java
+@Service
+@RequiredArgsConstructor
+public class IdempotentOrderService {
+
+    private final IdempotencyRecordRepository recordRepository;
+    private final OrderCreator creator;
+    private final OrderRepository orderRepository;
+
+    @Transactional
+    public Order create(CreateOrderRequest req, String key) {
+        String hash = sha256(req.canonical());
+
+        // Request thứ hai dùng key này bị chặn ở đây cho tới khi request đầu commit hoặc rollback
+        if (recordRepository.insertIfAbsent(key, req.userId(), hash) == 0) {
+            IdempotencyRecord rec = recordRepository.findById(key).orElseThrow();
+            if (rec.getUserId() != req.userId() || !rec.getRequestHash().equals(hash)) {
+                // Cùng key nhưng nội dung khác: lỗi của client hoặc bị giả mạo
+                throw new IdempotencyConflictException("Idempotency-Key đã được dùng cho request khác");
+            }
+            return orderRepository.findById(rec.getOrderId()).orElseThrow();
+        }
+
+        // Record và order nằm cùng transaction: cùng commit hoặc cùng rollback
+        Order order = creator.create(req, null);
+        recordRepository.attachOrder(key, order.getId());
+        return order;
+    }
+}
+```
+
+Anh em thấy khác gì cách 3? Vì `INSERT ... ON CONFLICT DO NOTHING` không ném exception mà trả về số dòng (0 hoặc 1), mình không cần bắt lỗi nữa và transaction vẫn "sạch". Cả ba việc (ghi record, tạo order, gắn order vào record) nằm trong **một transaction**, nên không có trạng thái nửa vời: hoặc có đủ cả record lẫn order, hoặc không có gì.
+
+Khi hai request cùng key đến cùng lúc, request sau sẽ chờ request đầu kết thúc rồi mới biết kết quả. Mình đã kiểm chứng điều này bằng test bắn 50 thread ở phần 9 (chỉ 1 order, 50 response cùng một id). Hành vi chờ này đến từ unique index: theo tài liệu PostgreSQL về [Index Uniqueness Checks](https://www.postgresql.org/docs/current/index-unique-checks.html), nếu dòng xung đột được insert bởi một transaction chưa commit thì request insert sau phải chờ transaction đó kết thúc rồi mới kiểm tra lại. Tài liệu về [`INSERT`](https://www.postgresql.org/docs/current/sql-insert.html) mô tả `ON CONFLICT DO NOTHING` là bỏ qua việc insert khi xung đột.
+
+Kết quả với từng tình huống:
+
+| Tình huống | Kết quả |
+| --- | --- |
+| Request đầu tiên với key mới | Tạo order, HTTP 200 |
+| Retry cùng key, cùng nội dung | Trả về đúng order cũ |
+| Cùng key, nội dung khác | HTTP 422 `Idempotency-Key đã được dùng cho request khác` |
+
+**Note**: Bảng này sẽ phình theo thời gian. Stripe [xóa key sau ít nhất 24 giờ](https://docs.stripe.com/api/idempotent_requests), anh em nên có job dọn các record cũ theo `created_at`.
+
+<p align="center">
+  <img
+    src="/static/img/posts/how-to-avoid-duplicating-order-creation-in-an-ecommerce-application/image_5.svg"
+    alt="Luồng cách 4: INSERT idempotency_record ON CONFLICT DO NOTHING, nếu 1 dòng thì tạo order và gắn vào record, nếu 0 dòng thì so request hash rồi trả order cũ hoặc báo 422"
+    title="Cách 4: bảng idempotency record"
+  />
+</p>
+<p align="center">
+  Cách 4: record và order cùng một transaction, request đến sau so hash rồi trả kết quả đã lưu
+</p>
+
+# 7. - Cách 5: Redis SET NX chặn sớm phía trước
+
+Trong flash sale, hàng nghìn request trùng cùng đập vào database chỉ để nhận lỗi "đã tồn tại" thì lãng phí. Ý tưởng giống bài inventory: để **Redis** đứng trước, chặn sớm những request chắc chắn trùng.
+
+Lệnh [`SET key value NX EX`](https://redis.io/docs/latest/commands/set/) (trong Spring Data Redis là `setIfAbsent` kèm `Duration`) chỉ đặt key khi nó chưa tồn tại, và là thao tác nguyên tử:
+
+```java
+@Service
+@RequiredArgsConstructor
+public class RedisGatedOrderService {
+
+    private static final Duration WINDOW = Duration.ofMinutes(10);
+
+    private final StringRedisTemplate redis;
+    private final UniqueKeyOrderService dbService; // cách 3
+    private final OrderRepository orderRepository;
+
+    public Order create(CreateOrderRequest req, String key) {
+        String redisKey = "order-dedupe:" + req.userId() + ":" + key;
+
+        Boolean acquired = redis.opsForValue().setIfAbsent(redisKey, "PROCESSING", WINDOW);
+        if (!Boolean.TRUE.equals(acquired)) {
+            // Request trùng: nếu order đã có thì trả về, chưa có thì báo đang xử lý
+            return orderRepository.findByIdempotencyKey(key)
+                    .orElseThrow(() -> new RequestInProgressException("Order đang được xử lý"));
+        }
+        try {
+            return dbService.create(req, key);
+        } catch (RuntimeException ex) {
+            redis.delete(redisKey); // thất bại thì nhả key để client retry được
+            throw ex;
+        }
+    }
+}
+```
+
+Điểm quan trọng: Redis chỉ là **cổng chặn**, database vẫn là nguồn chân lý. Nếu Redis restart và mất key, request trùng đi lọt xuống database và vẫn bị UNIQUE của cách 3 chặn. Redis lệch thì tệ nhất là mất khả năng chặn sớm, chứ không tạo ra đơn trùng.
+
+Cái giá phải trả: những request đến **trong lúc order đang được ghi** sẽ nhận `409` (đang xử lý) thay vì order. Ở test của mình, 50 request cùng lúc thì có 4 request nhận 409, và client chỉ cần retry sau một lúc là lấy được order. Cách 3 và 4 không có vấn đề này vì request sau được database cho chờ.
+
+<p align="center">
+  <img
+    src="/static/img/posts/how-to-avoid-duplicating-order-creation-in-an-ecommerce-application/image_6.svg"
+    alt="Sơ đồ request đi qua Redis SET NX trước, request trùng bị chặn ngay tại Redis, request đầu tiên đi xuống database với UNIQUE constraint"
+    title="Cách 5: Redis SET NX"
+  />
+</p>
+<p align="center">
+  Cách 5: Redis chặn phần lớn request trùng, chỉ request đầu tiên mới xuống database
+</p>
+
+# 8. - Cách 6: Checkout token dùng một lần do server cấp
+
+Cách 3, 4, 5 đều dựa vào key do **client** tự sinh. Với retry vô tình thì ổn, nhưng với bot thì không: bot chỉ cần sinh một key mới cho mỗi request là qua hết, 100 request song song thành 100 đơn hợp lệ. Idempotency key chống được "cùng một request gửi nhiều lần", không chống được "nhiều request khác nhau cùng mua".
+
+Giải pháp là để **server** cấp token khi user mở trang checkout, gắn với đúng user và giỏ hàng, và chỉ cho dùng **một lần**:
+
+```java
+@Service
+@RequiredArgsConstructor
+public class CheckoutTokenService {
+
+    private static final Duration TTL = Duration.ofMinutes(15);
+
+    private final StringRedisTemplate redis;
+
+    /** Gọi khi user mở trang checkout */
+    public String issue(long userId, String cartId) {
+        String token = UUID.randomUUID().toString();
+        redis.opsForValue().set(key(token), userId + ":" + cartId, TTL);
+        return token;
+    }
+
+    /** GETDEL: lấy và xóa trong một lệnh nguyên tử, chỉ một request được dùng token */
+    public boolean consume(String token, long userId, String cartId) {
+        String bound = redis.opsForValue().getAndDelete(key(token));
+        return (userId + ":" + cartId).equals(bound);
+    }
+
+    private String key(String token) {
+        return "checkout-token:" + token;
+    }
+}
+```
+
+[`GETDEL`](https://redis.io/docs/latest/commands/getdel/) có từ Redis 6.2.0 và vừa lấy giá trị vừa xóa key, nên trong 50 request cùng token chỉ đúng một request lấy được giá trị. Phần tạo đơn:
+
+```java
+@Service
+@RequiredArgsConstructor
+public class TokenOrderService {
+
+    private final CheckoutTokenService tokenService;
+    private final UniqueKeyOrderService dbService;
+    private final OrderRepository orderRepository;
+
+    public Order create(CreateOrderRequest req, String token) {
+        if (tokenService.consume(token, req.userId(), req.cartId())) {
+            // Token cũng là idempotency key ở DB: lớp bảo vệ cuối nếu Redis mất dữ liệu
+            return dbService.create(req, token);
+        }
+        // Token không còn: đã dùng rồi (retry hợp lệ) hoặc giả mạo
+        return orderRepository.findByIdempotencyKey(token)
+                .filter(o -> o.getUserId() == req.userId())
+                .orElseThrow(() -> new InvalidTokenException("Token không hợp lệ hoặc hết hạn"));
+    }
+}
+```
+
+Token mang lại những thứ mà key do client sinh không có: bot **không tự bịa được token** (phải gọi API cấp token, nơi anh em đặt rate limit và kiểm tra user), token **gắn với user và giỏ hàng** nên bắt được replay sang tài khoản khác, và token **hết hạn** nên request cũ không phát lại mãi được.
+
+Đổi lại, request retry đến khi order **chưa kịp ghi xong** sẽ thấy token đã bị tiêu thụ mà chưa có order, nên nhận 400. Ở test của mình 50 request cùng lúc thì 16 request nhận lỗi này, và client cần retry sau đó là sẽ lấy được order. Nếu anh em không muốn client thấy lỗi này, hãy kết hợp với cách 4 để request đến sau được chờ.
+
+Có một trường hợp nữa cần lưu ý: token đã bị tiêu thụ nhưng việc ghi order lại lỗi (ví dụ database tạm thời không truy cập được). Lúc này token đã mất và chưa có order nào, nên client retry với token cũ cũng nhận 400. Cách xử lý đơn giản là để client gọi lại API cấp token rồi đặt hàng lại. Vì chưa có order nào được tạo nên không có nguy cơ trùng.
+
+**Note**: Token chỉ là một lớp. Với bot, anh em vẫn nên kết hợp [rate limit](https://davidnguyenblog.vercel.app/blog/trien-khai-rate-limited-voi-hazelcast-va-spring-boot) và giới hạn nghiệp vụ như "mỗi user tối đa N sản phẩm flash sale" (kiểm tra ở tầng database, không phải ở tầng service). Còn với message redelivery từ queue, hãy dùng chính id của message làm idempotency key ở phía consumer, cùng cơ chế như cách 3 hoặc 4.
+
+<p align="center">
+  <img
+    src="/static/img/posts/how-to-avoid-duplicating-order-creation-in-an-ecommerce-application/image_7.svg"
+    alt="Sơ đồ checkout token: server cấp token gắn user và cart khi mở trang checkout, request tạo đơn dùng GETDEL để tiêu thụ token một lần, token giả hoặc đã dùng bị từ chối hoặc trả order cũ"
+    title="Cách 6: checkout token dùng một lần"
+  />
+</p>
+<p align="center">
+  Cách 6: server cấp token, GETDEL đảm bảo chỉ một request tiêu thụ được, token giả bị từ chối
+</p>
+
+# 9. - Test: bắn 50 request cùng lúc
+
+Test bắn 50 thread cùng gửi một request mua hàng, dùng `CountDownLatch` để các thread xuất phát cùng lúc (ví dụ cho cách 3):
+
+```java
+@Test
+void uniqueKeyCreatesOneOrder() throws Exception {
+    List<Order> results = fire(() -> unique.create(REQ, "key-1"));
+    long inDb = orderRepository.countByUserId(1L);
+
+    System.out.printf("[unique] responses=%d, distinct ids=%d, orders in DB=%d%n",
+            results.size(), distinctIds(results).size(), inDb);
+
+    assertThat(inDb).isEqualTo(1);
+    assertThat(distinctIds(results)).hasSize(1);
+}
+```
+
+Hàm `fire` tạo 50 thread, `await()` trên một latch rồi cùng chạy. Chạy `mvn test` trong project demo, mình nhận được:
+
+```
+[naive] responses=50, orders in DB=30
+[unique] responses=50, distinct ids=1, orders in DB=1
+[idempotent] responses=50, distinct ids=1, orders in DB=1
+[token] responses=34, distinct ids=1, orders in DB=1
+[gated] responses=46, distinct ids=1, orders in DB=1
+```
+
+Cách 2 (check-then-insert) tạo ra **30 đơn cho một giỏ hàng**. Con số này thay đổi mỗi lần chạy vì phụ thuộc vào cách các thread đan xen nhau, nhưng gần như chắc chắn lớn hơn 1. Các cách còn lại luôn đúng 1 đơn. Số response của cách 5 và 6 nhỏ hơn 50 vì các request đến lúc đơn đang ghi bị từ chối (409 và 400) như mình đã nói ở trên.
+
+**Note**: Đây là test gọi thẳng service trong một JVM với connection pool 30, chưa phải load test qua HTTP, và số liệu phụ thuộc vào máy của mình. Anh em dùng nó để thấy được hành vi, đừng dùng nó để suy ra hiệu năng.
+
+# 10. - So sánh các cách tiếp cận
+
+| Cách tiếp cận | Bấm đúp | Retry / redelivery | Race đồng thời | Bot, replay | Độ phức tạp | Dùng khi |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1. Disable nút (client) | Một phần (một tab) | Không | Không | Không | Rất thấp | Luôn nên có, nhưng chỉ để cải thiện UX |
+| 2. Check-then-insert | Không đảm bảo | Không đảm bảo | Không | Không | Thấp | Không dùng cho tạo đơn |
+| 3. Idempotency-Key + UNIQUE | Có | Có | Có | Không (key do client tự sinh) | Thấp | Mặc định, điểm bắt đầu cho hầu hết hệ thống |
+| 4. Idempotency record | Có | Có (kiểm tra cả nội dung) | Có | Một phần (bắt được key tái sử dụng sai) | Trung bình | API thanh toán, nhiều loại thao tác dùng chung cơ chế |
+| 5. Redis SET NX + DB | Có | Có (có thể nhận 409) | Có | Không | Cao | Flash sale, cần giảm tải database |
+| 6. Checkout token | Có | Có (có thể nhận 400) | Có | Có (kèm rate limit) | Cao | Có bot, cần chống replay và giả mạo |
+
+<p align="center">
+  <img
+    src="/static/img/posts/how-to-avoid-duplicating-order-creation-in-an-ecommerce-application/image_8.svg"
+    alt="Ma trận so sánh 6 cách tiếp cận theo các tiêu chí: bấm đúp, retry, race đồng thời, bot và replay, độ phức tạp, tô màu xanh, vàng, đỏ"
+    title="Ma trận so sánh các cách tiếp cận"
+  />
+</p>
+<p align="center">
+  Ma trận so sánh nhanh: xanh là đáp ứng tốt, vàng là một phần hoặc có điều kiện, đỏ là không đáp ứng
+</p>
+
+=> Cách 5 và 6 không thay thế cách 3 hoặc 4 mà là lớp bổ sung ở phía trước. Lớp cuối cùng luôn là constraint của database.
+
+# 11. - Source Code
+
+- Mình có code demo đầy đủ cho các cách trong bài, kèm test bắn 50 request và docker compose cho PostgreSQL và Redis. Anh em có thể tham khảo tại đây:
+
+[https://github.com/canhnd15/blog-demos/tree/main/how-to-avoid-duplicating-order-creation-in-an-ecommerce-application](https://github.com/canhnd15/blog-demos/tree/main/how-to-avoid-duplicating-order-creation-in-an-ecommerce-application)
+
+# 12. - Kết luận & tổng kết
+
+Quay lại câu hỏi đầu bài: làm sao để một lần bấm "Đặt hàng" chỉ tạo đúng một Order, kể cả khi mạng chập chờn, client retry và bot tấn công?
+
+- **Gốc của đơn trùng cũng là check-then-act**: kiểm tra rồi mới ghi ở hai bước tách rời thì luôn có race condition. Test của mình tạo ra 30 đơn cho một giỏ hàng.
+
+- **Không tin client**: disable nút chỉ là UX, mọi cơ chế thật sự phải nằm ở server.
+
+- **Idempotency-Key + UNIQUE constraint (cách 3) là nền tảng**: để database làm trọng tài, request đến sau nhận lại order cũ. Đa số hệ thống dừng ở đây là đủ.
+
+- **Bảng idempotency record (cách 4)** thêm kiểm tra nội dung request và gom cơ chế dùng chung cho nhiều thao tác.
+
+- **Redis SET NX (cách 5)** giảm tải cho database lúc flash sale, nhưng database vẫn phải là chốt chặn cuối.
+
+- **Checkout token (cách 6)** là cách duy nhất ở đây chống được bot dùng key khác nhau, và nên đi kèm rate limit.
+
+Lời khuyên của mình: bắt đầu từ cách 3, thêm cách 4 khi cần kiểm tra nội dung request, chỉ thêm Redis và token khi thực sự có tải lớn hoặc có bot.
+
+<p align="center">
+  <img
+    src="/static/img/posts/how-to-avoid-duplicating-order-creation-in-an-ecommerce-application/image_9.svg"
+    alt="Sơ đồ chọn cách tiếp cận: bắt đầu từ Idempotency-Key và UNIQUE, thêm idempotency record nếu cần kiểm tra nội dung request, thêm Redis SET NX khi database quá tải, thêm checkout token khi có bot"
+    title="Chọn cách tiếp cận nào"
+  />
+</p>
+<p align="center">
+  Bắt đầu với cách 3, chỉ thêm các lớp phía trước khi có lý do rõ ràng
+</p>
+
+Các bài liên quan trong series anh em có thể đọc thêm:
+
+- [https://davidnguyenblog.vercel.app/blog/how-to-prevent-duplicate-username-at-scale](https://davidnguyenblog.vercel.app/blog/how-to-prevent-duplicate-username-at-scale)
+
+- [https://davidnguyenblog.vercel.app/blog/how-to-solve-inventory-reservation-in-an-ecommerce-application](https://davidnguyenblog.vercel.app/blog/how-to-solve-inventory-reservation-in-an-ecommerce-application)
+
+Hẹn gặp lại anh em ở những dự án tiếp theo – Happy Coding! 🚀

@@ -1,7 +1,7 @@
 ---
 name: senior-writer
 description: Senior tech writer for davidnguyen.blog. Writes a new Vietnamese MDX blog post (as a draft) from a brief in drafts/briefs/, following the blog's established style. Use when the user wants a new post drafted.
-tools: Read, Write, Edit, Glob, Grep, WebSearch, WebFetch
+tools: Read, Write, Edit, Glob, Grep, Bash, WebSearch, WebFetch
 skills:
   - blog-writer-rules
 ---

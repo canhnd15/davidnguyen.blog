@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 480" role="img" aria-label="Disable nút chỉ chặn bấm đúp trên một tab, còn refresh, retry, nhiều tab và bot vẫn tới được server">
+  <style>
+    text{font-family:Helvetica,Arial,sans-serif;font-size:15px;fill:#1E293B}
+    .s{font-size:14px;fill:#475569}
+    .m{text-anchor:middle}
+    .bx{fill:#DBEAFE;stroke:#2563EB;stroke-width:2}
+    .ok{fill:#DCFCE7;stroke:#16A34A;stroke-width:2}
+    .no{fill:#FEE2E2;stroke:#DC2626;stroke-width:2}
+    .wn{fill:#FEF3C7;stroke:#D97706;stroke-width:2}
+    .gr{fill:#F1F5F9;stroke:#94A3B8;stroke-width:1.5}
+    .ln{stroke:#64748B;stroke-width:2;fill:none;marker-end:url(#a)}
+    .ll{stroke:#94A3B8;stroke-width:1.5;stroke-dasharray:6 5}
+  </style>
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#64748B"/></marker></defs>
+  <rect width="800" height="480" fill="#F8FAFC"/>
+  <rect x="30" y="40" width="200" height="44" rx="8" class="bx"/><text x="130" y="68" class="m">Bấm đúp, cùng một tab</text>
+  <line x1="232" y1="62" x2="298" y2="62" class="ln"/>
+  <rect x="30" y="106" width="200" height="44" rx="8" class="wn"/><text x="130" y="134" class="m">Refresh / back</text>
+  <line x1="232" y1="128" x2="556" y2="128" class="ln"/>
+  <rect x="30" y="172" width="200" height="44" rx="8" class="wn"/><text x="130" y="200" class="m">Gateway retry</text>
+  <line x1="232" y1="194" x2="556" y2="194" class="ln"/>
+  <rect x="30" y="238" width="200" height="44" rx="8" class="wn"/><text x="130" y="266" class="m">Nhiều tab</text>
+  <line x1="232" y1="260" x2="556" y2="260" class="ln"/>
+  <rect x="30" y="304" width="200" height="44" rx="8" class="wn"/><text x="130" y="332" class="m">Bot / script</text>
+  <line x1="232" y1="326" x2="556" y2="326" class="ln"/>
+  <rect x="300" y="30" width="130" height="64" rx="8" class="ok"/>
+  <text x="365" y="58" class="m">Disable nút</text><text x="365" y="80" class="m s">chặn được</text>
+  <rect x="560" y="100" width="200" height="260" rx="10" class="gr"/>
+  <text x="660" y="220" class="m" style="font-weight:bold">Server</text>
+  <text x="660" y="246" class="m s">API tạo đơn</text>
+  <text x="660" y="270" class="m s">nhận 4 request trùng</text>
+  <rect x="100" y="412" width="600" height="52" rx="10" class="no"/><text x="400" y="443" class="m" style="font-weight:bold">Chỉ chặn được 1 nguồn, 4 nguồn còn lại không qua JavaScript</text>
+</svg>

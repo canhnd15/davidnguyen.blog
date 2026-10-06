@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 495" role="img" aria-label="Hai request cùng Idempotency-Key: một INSERT thắng, request còn lại vi phạm UNIQUE, rollback và facade trả về order của request thắng">
+  <style>
+    text{font-family:Helvetica,Arial,sans-serif;font-size:15px;fill:#1E293B}
+    .s{font-size:14px;fill:#475569}
+    .m{text-anchor:middle}
+    .bx{fill:#DBEAFE;stroke:#2563EB;stroke-width:2}
+    .ok{fill:#DCFCE7;stroke:#16A34A;stroke-width:2}
+    .no{fill:#FEE2E2;stroke:#DC2626;stroke-width:2}
+    .wn{fill:#FEF3C7;stroke:#D97706;stroke-width:2}
+    .gr{fill:#F1F5F9;stroke:#94A3B8;stroke-width:1.5}
+    .ln{stroke:#64748B;stroke-width:2;fill:none;marker-end:url(#a)}
+    .ll{stroke:#94A3B8;stroke-width:1.5;stroke-dasharray:6 5}
+  </style>
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#64748B"/></marker></defs>
+  <rect width="800" height="495" fill="#F8FAFC"/>
+  <rect x="50" y="20" width="160" height="40" rx="8" class="bx"/><text x="130" y="46" class="m">Request 1</text>
+  <rect x="300" y="20" width="200" height="40" rx="8" class="gr"/><text x="400" y="46" class="m">Database (UNIQUE)</text>
+  <rect x="590" y="20" width="160" height="40" rx="8" class="bx"/><text x="670" y="46" class="m">Request 2</text>
+  <line x1="130" y1="60" x2="130" y2="410" class="ll"/>
+  <line x1="400" y1="60" x2="400" y2="410" class="ll"/>
+  <line x1="670" y1="60" x2="670" y2="410" class="ll"/>
+  <rect x="270" y="72" width="260" height="26" rx="6" class="wn"/><text x="400" y="90" class="m s">cả hai: Idempotency-Key = abc-123</text>
+  <line x1="132" y1="140" x2="396" y2="140" class="ln"/>
+  <text x="265" y="130" class="m">1. INSERT order</text>
+  <rect x="320" y="152" width="160" height="28" rx="6" class="ok"/><text x="400" y="172" class="m s">thành công, COMMIT</text>
+  <rect x="50" y="152" width="160" height="28" rx="6" class="ok"/><text x="130" y="172" class="m s">order #1 đã tạo</text>
+  <line x1="668" y1="225" x2="404" y2="225" class="ln"/>
+  <text x="535" y="215" class="m">2. INSERT order</text>
+  <rect x="300" y="237" width="200" height="28" rx="6" class="no"/><text x="400" y="257" class="m s">vi phạm UNIQUE</text>
+  <rect x="590" y="237" width="160" height="28" rx="6" class="no"/><text x="670" y="257" class="m s">rollback</text>
+  <rect x="590" y="275" width="160" height="28" rx="6" class="wn"/><text x="670" y="295" class="m s">facade bắt lỗi</text>
+  <line x1="668" y1="345" x2="404" y2="345" class="ln"/>
+  <text x="535" y="335" class="m">3. SELECT theo key</text>
+  <line x1="404" y1="390" x2="668" y2="390" class="ln"/>
+  <text x="535" y="380" class="m">4. order #1</text>
+  <rect x="100" y="425" width="600" height="52" rx="10" class="ok"/>
+  <text x="400" y="456" class="m" style="font-weight:bold">Facade trả về order của Request 1: không có order thứ hai</text>
+</svg>

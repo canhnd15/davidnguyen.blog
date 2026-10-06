@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 440" role="img" aria-label="Request đi qua Redis SET NX trước: request trùng bị chặn tại Redis bằng 409 hoặc trả order đã có, request đầu tiên đi xuống database với UNIQUE constraint">
+  <style>
+    text{font-family:Helvetica,Arial,sans-serif;font-size:15px;fill:#1E293B}
+    .s{font-size:14px;fill:#475569}
+    .c{font-size:13px;fill:#1E293B}
+    .m{text-anchor:middle}
+    .bx{fill:#DBEAFE;stroke:#2563EB;stroke-width:2}
+    .ok{fill:#DCFCE7;stroke:#16A34A;stroke-width:2}
+    .wn{fill:#FEF3C7;stroke:#D97706;stroke-width:2}
+    .rd{fill:#FEE2E2;stroke:#DC2626;stroke-width:2}
+    .ll{stroke:#94A3B8;stroke-width:1.5;stroke-dasharray:6 5;fill:none}
+    .tm{stroke:#64748B;stroke-width:2;fill:none;marker-end:url(#a)}
+  </style>
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#64748B"/></marker></defs>
+  <rect width="800" height="440" fill="#F8FAFC"/>
+
+  <rect x="300" y="20" width="200" height="40" rx="8" class="bx"/><text x="400" y="46" class="m">Request tạo đơn</text>
+  <path d="M400 60 L400 88" class="tm"/>
+  <rect x="200" y="90" width="400" height="54" rx="8" class="wn"/>
+  <text x="400" y="113" class="m">Redis: SET key NX EX 600</text>
+  <text x="400" y="132" class="m s">chỉ đặt khi key chưa tồn tại</text>
+  <path d="M200 117 L190 117 L190 200" class="tm"/><text x="190" y="165" class="m s" transform="translate(-60 0)">key đã tồn tại</text>
+  <path d="M600 117 L610 117 L610 200" class="tm"/><text x="610" y="165" class="m s" transform="translate(70 0)">key mới</text>
+
+  <rect x="40" y="202" width="300" height="64" rx="8" class="rd"/>
+  <text x="190" y="228" class="m" style="font-weight:bold">Chặn tại Redis</text>
+  <text x="190" y="249" class="m s">409 hoặc trả order đã có</text>
+  <rect x="460" y="202" width="300" height="64" rx="8" class="ok"/>
+  <text x="610" y="228" class="m" style="font-weight:bold">Request đầu tiên</text>
+  <text x="610" y="249" class="m s">đi tiếp xuống database</text>
+  <path d="M610 266 L610 304" class="tm"/>
+  <rect x="460" y="306" width="300" height="54" rx="8" class="bx"/>
+  <text x="610" y="329" class="m">Database: INSERT order</text>
+  <text x="610" y="348" class="m s">UNIQUE (idempotency_key)</text>
+  <path d="M610 360 L610 384" class="tm"/>
+  <rect x="460" y="386" width="300" height="40" rx="8" class="ok"/><text x="610" y="411" class="m s">Tạo order, trả HTTP 200</text>
+
+  <rect x="40" y="306" width="300" height="64" rx="8" class="wn"/>
+  <text x="190" y="332" class="m s">Redis restart, mất key:</text>
+  <text x="190" y="352" class="m s">request trùng lọt xuống DB</text>
+  <path d="M340 338 L458 338" class="tm" style="stroke-dasharray:6 5"/>
+  <text x="400" y="326" class="m s">UNIQUE chặn</text>
+</svg>

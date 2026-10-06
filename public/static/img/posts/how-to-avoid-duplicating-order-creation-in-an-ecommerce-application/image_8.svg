@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 480" role="img" aria-label="Ma trận so sánh 6 cách tiếp cận theo bấm đúp, retry, race đồng thời, bot và replay, độ phức tạp, tô màu xanh, vàng, đỏ">
+  <style>
+    text{font-family:Helvetica,Arial,sans-serif;font-size:15px;fill:#1E293B}
+    .s{font-size:14px;fill:#475569}
+    .c{font-size:13px;fill:#1E293B}
+    .m{text-anchor:middle}
+    .bx{fill:#DBEAFE;stroke:#2563EB;stroke-width:2}
+    .ok{fill:#DCFCE7;stroke:#16A34A;stroke-width:2}
+    .wn{fill:#FEF3C7;stroke:#D97706;stroke-width:2}
+    .rd{fill:#FEE2E2;stroke:#DC2626;stroke-width:2}
+    .ll{stroke:#94A3B8;stroke-width:1.5;stroke-dasharray:6 5;fill:none}
+    .tm{stroke:#64748B;stroke-width:2;fill:none;marker-end:url(#a)}
+  </style>
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#64748B"/></marker></defs>
+  <rect width="800" height="480" fill="#F8FAFC"/>
+  <rect x="246" y="20" width="100" height="50" rx="8" class="bx"/>
+  <text x="296.0" y="50" class="m c">Bấm đúp</text>
+  <rect x="352" y="20" width="100" height="50" rx="8" class="bx"/>
+  <text x="402.0" y="50" class="m c">Retry</text>
+  <rect x="458" y="20" width="100" height="50" rx="8" class="bx"/>
+  <text x="508.0" y="41" class="m c">Race</text><text x="508.0" y="58" class="m c">đồng thời</text>
+  <rect x="564" y="20" width="100" height="50" rx="8" class="bx"/>
+  <text x="614.0" y="41" class="m c">Bot,</text><text x="614.0" y="58" class="m c">replay</text>
+  <rect x="670" y="20" width="100" height="50" rx="8" class="bx"/>
+  <text x="720.0" y="41" class="m c">Độ</text><text x="720.0" y="58" class="m c">phức tạp</text>
+  <rect x="20" y="20" width="220" height="50" rx="8" class="bx"/><text x="30" y="50">Cách tiếp cận</text>
+  <rect x="20" y="80" width="220" height="50" rx="8" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.5"/><text x="30" y="110" class="c">1. Disable nút (client)</text>
+  <rect x="246" y="80" width="100" height="50" rx="8" class="wn"/>
+  <text x="296.0" y="110" class="m c">Một phần</text>
+  <rect x="352" y="80" width="100" height="50" rx="8" class="rd"/>
+  <text x="402.0" y="110" class="m c">Không</text>
+  <rect x="458" y="80" width="100" height="50" rx="8" class="rd"/>
+  <text x="508.0" y="110" class="m c">Không</text>
+  <rect x="564" y="80" width="100" height="50" rx="8" class="rd"/>
+  <text x="614.0" y="110" class="m c">Không</text>
+  <rect x="670" y="80" width="100" height="50" rx="8" class="ok"/>
+  <text x="720.0" y="110" class="m c">Rất thấp</text>
+  <rect x="20" y="136" width="220" height="50" rx="8" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.5"/><text x="30" y="166" class="c">2. Check-then-insert</text>
+  <rect x="246" y="136" width="100" height="50" rx="8" class="rd"/>
+  <text x="296.0" y="158" class="m c">Không</text><text x="296.0" y="175" class="m c">đảm bảo</text>
+  <rect x="352" y="136" width="100" height="50" rx="8" class="rd"/>
+  <text x="402.0" y="158" class="m c">Không</text><text x="402.0" y="175" class="m c">đảm bảo</text>
+  <rect x="458" y="136" width="100" height="50" rx="8" class="rd"/>
+  <text x="508.0" y="166" class="m c">Không</text>
+  <rect x="564" y="136" width="100" height="50" rx="8" class="rd"/>
+  <text x="614.0" y="166" class="m c">Không</text>
+  <rect x="670" y="136" width="100" height="50" rx="8" class="ok"/>
+  <text x="720.0" y="166" class="m c">Thấp</text>
+  <rect x="20" y="192" width="220" height="50" rx="8" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.5"/><text x="30" y="222" class="c">3. Idempotency-Key + UNIQUE</text>
+  <rect x="246" y="192" width="100" height="50" rx="8" class="ok"/>
+  <text x="296.0" y="222" class="m c">Có</text>
+  <rect x="352" y="192" width="100" height="50" rx="8" class="ok"/>
+  <text x="402.0" y="222" class="m c">Có</text>
+  <rect x="458" y="192" width="100" height="50" rx="8" class="ok"/>
+  <text x="508.0" y="222" class="m c">Có</text>
+  <rect x="564" y="192" width="100" height="50" rx="8" class="rd"/>
+  <text x="614.0" y="222" class="m c">Không</text>
+  <rect x="670" y="192" width="100" height="50" rx="8" class="ok"/>
+  <text x="720.0" y="222" class="m c">Thấp</text>
+  <rect x="20" y="248" width="220" height="50" rx="8" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.5"/><text x="30" y="278" class="c">4. Idempotency record</text>
+  <rect x="246" y="248" width="100" height="50" rx="8" class="ok"/>
+  <text x="296.0" y="278" class="m c">Có</text>
+  <rect x="352" y="248" width="100" height="50" rx="8" class="ok"/>
+  <text x="402.0" y="270" class="m c">Có</text><text x="402.0" y="287" class="m s" style="font-size:12px">kiểm tra nội dung</text>
+  <rect x="458" y="248" width="100" height="50" rx="8" class="ok"/>
+  <text x="508.0" y="278" class="m c">Có</text>
+  <rect x="564" y="248" width="100" height="50" rx="8" class="wn"/>
+  <text x="614.0" y="278" class="m c">Một phần</text>
+  <rect x="670" y="248" width="100" height="50" rx="8" class="wn"/>
+  <text x="720.0" y="278" class="m c">Trung bình</text>
+  <rect x="20" y="304" width="220" height="50" rx="8" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.5"/><text x="30" y="334" class="c">5. Redis SET NX + DB</text>
+  <rect x="246" y="304" width="100" height="50" rx="8" class="ok"/>
+  <text x="296.0" y="334" class="m c">Có</text>
+  <rect x="352" y="304" width="100" height="50" rx="8" class="ok"/>
+  <text x="402.0" y="326" class="m c">Có</text><text x="402.0" y="343" class="m s" style="font-size:12px">có thể 409</text>
+  <rect x="458" y="304" width="100" height="50" rx="8" class="ok"/>
+  <text x="508.0" y="334" class="m c">Có</text>
+  <rect x="564" y="304" width="100" height="50" rx="8" class="rd"/>
+  <text x="614.0" y="334" class="m c">Không</text>
+  <rect x="670" y="304" width="100" height="50" rx="8" class="rd"/>
+  <text x="720.0" y="334" class="m c">Cao</text>
+  <rect x="20" y="360" width="220" height="50" rx="8" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.5"/><text x="30" y="390" class="c">6. Checkout token</text>
+  <rect x="246" y="360" width="100" height="50" rx="8" class="ok"/>
+  <text x="296.0" y="390" class="m c">Có</text>
+  <rect x="352" y="360" width="100" height="50" rx="8" class="ok"/>
+  <text x="402.0" y="382" class="m c">Có</text><text x="402.0" y="399" class="m s" style="font-size:12px">có thể 400</text>
+  <rect x="458" y="360" width="100" height="50" rx="8" class="ok"/>
+  <text x="508.0" y="390" class="m c">Có</text>
+  <rect x="564" y="360" width="100" height="50" rx="8" class="ok"/>
+  <text x="614.0" y="382" class="m c">Có</text><text x="614.0" y="399" class="m s" style="font-size:12px">kèm rate limit</text>
+  <rect x="670" y="360" width="100" height="50" rx="8" class="rd"/>
+  <text x="720.0" y="390" class="m c">Cao</text>
+  <rect x="20" y="430" width="22" height="22" rx="4" class="ok"/><text x="50" y="447" class="s">Đáp ứng tốt</text>
+  <rect x="190" y="430" width="22" height="22" rx="4" class="wn"/><text x="220" y="447" class="s">Một phần, có điều kiện</text>
+  <rect x="430" y="430" width="22" height="22" rx="4" class="rd"/><text x="460" y="447" class="s">Không đáp ứng, hoặc chi phí cao</text>
+</svg>
