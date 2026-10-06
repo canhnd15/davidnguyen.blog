@@ -3,7 +3,7 @@ title: 'Làm sao tránh tạo trùng Order khi flash sale trong hệ thống e-c
 date: '2026-10-06'
 lastmod: '2026-10-06'
 tags: ['E-commerce', 'High Concurrency', 'Java', 'Spring Boot', 'software-architecture']
-draft: false
+draft: true
 summary: Trong bài viết này, mình sẽ cùng anh em tìm hiểu bài toán tạo trùng Order (duplicate order) trong một hệ thống e-commerce có rất nhiều người dùng truy cập đồng thời, đặc biệt là lúc flash sale. Mình đi từ nguyên nhân (user bấm đúp, refresh, client retry, message redelivery cho tới bot và replay attack), hậu quả khi đơn bị trùng, rồi lần lượt qua 6 cách xử lý từ cơ bản đến nâng cao - disable nút bấm, check-then-insert, Idempotency-Key với UNIQUE constraint, bảng idempotency record, Redis SET NX và checkout token dùng một lần - kèm code Java & Spring Boot cho từng cách và một bảng so sánh để anh em chọn đúng giải pháp.
 images: ['/static/img/cover/posts/order-duplication.svg']
 layout: PostLayout
@@ -139,9 +139,19 @@ button.addEventListener('click', async () => {
 })
 ```
 
-Cách này nên có vì nó cải thiện trải nghiệm. Nhưng nó chỉ chặn được **một** nguyên nhân (bấm đúp trên một tab). Refresh, retry, nhiều tab, bot đều bỏ qua hoàn toàn vì chúng không đi qua JavaScript của anh em.
+**Ưu điểm:**
 
-=> Quy tắc: **không bao giờ tin client**. Mọi cơ chế chống trùng thật sự phải nằm ở server.
+- Không tốn gì ở server, phản hồi tức thì cho user.
+
+- Giảm hẳn tình trạng bấm đúp, nguyên nhân phổ biến nhất của đơn trùng vô tình.
+
+**Nhược điểm:**
+
+- Chỉ chặn được **một** nguyên nhân (bấm đúp trên một tab). Refresh, retry, nhiều tab, bot đều bỏ qua hoàn toàn vì chúng không đi qua JavaScript của anh em.
+
+- Ai gọi thẳng API (curl, script) là qua mặt được, nên không thể coi đây là cơ chế bảo vệ.
+
+=> Cách này vẫn nên có vì nó cải thiện trải nghiệm. Quy tắc: **không bao giờ tin client**. Mọi cơ chế chống trùng thật sự phải nằm ở server.
 
 <p align="center">
   <img
@@ -191,7 +201,19 @@ Với từng request một thì đúng. Nhưng hai request đến cùng lúc th�
   Cách 2: hai request cùng thấy chưa có đơn rồi cùng insert, kết quả là hai order
 </p>
 
-=> Lỗi này chỉ lộ ra khi có tải. Test từng request một thì mọi thứ đều "chạy đúng", và đó là lý do nó hay lọt lên production.
+**Ưu điểm:**
+
+- Dễ viết, dễ hiểu, không cần client gửi thêm gì và không cần thêm hạ tầng.
+
+- Đúng với request tuần tự, nên qua được hầu hết unit test thông thường.
+
+**Nhược điểm:**
+
+- Sai khi có đồng thời: test 50 request cùng lúc ở phần 9 tạo ra **30 đơn** cho một giỏ hàng.
+
+- Lỗi chỉ lộ ra khi có tải. Test từng request một thì mọi thứ đều "chạy đúng", và đó là lý do nó hay lọt lên production.
+
+- Mỗi request tốn thêm một câu `SELECT` mà vẫn không an toàn.
 
 # 5. - Cách 3: Idempotency-Key + UNIQUE constraint
 
@@ -229,9 +251,21 @@ Vài điểm anh em cần lưu ý:
 
 - Lỗi UNIQUE làm transaction bị đánh dấu rollback, nên phải bắt ở **bên ngoài** transaction. Đó là lý do `UniqueKeyOrderService` không có `@Transactional`.
 
-- Request thứ hai nhận lại **đúng order của request đầu** thay vì lỗi, nên client retry thoải mái.
+**Ưu điểm:**
 
-- Hạn chế: nếu client gửi **cùng key nhưng nội dung khác** (đổi số lượng chẳng hạn), cách này vẫn trả về order cũ mà không cảnh báo. Cách 4 sẽ xử lý chỗ này.
+- Đúng với mọi mức đồng thời và mọi số instance, vì constraint do database đảm bảo.
+
+- Ít code, không cần hạ tầng nào ngoài database có sẵn.
+
+- Request thứ hai nhận lại **đúng order của request đầu** thay vì lỗi, nên client retry thoải mái. Test 50 thread cho đúng 1 order và 50 response cùng một id.
+
+**Nhược điểm:**
+
+- Nếu client gửi **cùng key nhưng nội dung khác** (đổi số lượng chẳng hạn), cách này vẫn trả về order cũ mà không cảnh báo. Cách 4 sẽ xử lý chỗ này.
+
+- Key do client sinh nên bot chỉ cần đổi key cho mỗi request là qua hết (cách 6 xử lý chỗ này).
+
+- Request thua phải đi hết một lượt `INSERT` lỗi, rollback và ném exception rồi mới bị từ chối, nên lúc flash sale database vẫn gánh toàn bộ request trùng (cách 5 xử lý chỗ này).
 
 <p align="center">
   <img
@@ -321,7 +355,21 @@ Kết quả với từng tình huống:
 | Retry cùng key, cùng nội dung | Trả về đúng order cũ |
 | Cùng key, nội dung khác | HTTP 422 `Idempotency-Key đã được dùng cho request khác` |
 
-**Note**: Bảng này sẽ phình theo thời gian. Stripe [xóa key sau ít nhất 24 giờ](https://docs.stripe.com/api/idempotent_requests), anh em nên có job dọn các record cũ theo `created_at`.
+**Ưu điểm:**
+
+- Bắt được trường hợp cùng key nhưng nội dung khác (HTTP 422), điều mà cách 3 bỏ qua.
+
+- Không ném exception nên transaction vẫn "sạch", và request đến sau được chờ rồi nhận đúng order (test 50 thread: 1 order, 50 response cùng một id, không có lỗi nào).
+
+- Tách khỏi bảng `orders` nên dùng chung được cho nhiều loại thao tác (thanh toán, hoàn tiền...).
+
+**Nhược điểm:**
+
+- Thêm một bảng, thêm code hash và so sánh nội dung, phức tạp hơn cách 3.
+
+- Bảng sẽ phình theo thời gian. Stripe [xóa key sau ít nhất 24 giờ](https://docs.stripe.com/api/idempotent_requests), anh em nên có job dọn các record cũ theo `created_at`.
+
+- Request đến sau phải chờ nên giữ một connection database trong lúc chờ (suy ra từ cơ chế chờ ở trên). Mọi request trùng vẫn đi tới database, và key vẫn do client sinh nên không chống được bot đổi key.
 
 <p align="center">
   <img
@@ -370,9 +418,21 @@ public class RedisGatedOrderService {
 }
 ```
 
-Điểm quan trọng: Redis chỉ là **cổng chặn**, database vẫn là nguồn chân lý. Nếu Redis restart và mất key, request trùng đi lọt xuống database và vẫn bị UNIQUE của cách 3 chặn. Redis lệch thì tệ nhất là mất khả năng chặn sớm, chứ không tạo ra đơn trùng.
+Redis chỉ là **cổng chặn**, database vẫn là nguồn chân lý.
 
-Cái giá phải trả: những request đến **trong lúc order đang được ghi** sẽ nhận `409` (đang xử lý) thay vì order. Ở test của mình, 50 request cùng lúc thì có 4 request nhận 409, và client chỉ cần retry sau một lúc là lấy được order. Cách 3 và 4 không có vấn đề này vì request sau được database cho chờ.
+**Ưu điểm:**
+
+- Request trùng bị chặn ngay ở Redis, không chạm tới database, nên giảm tải đúng lúc flash sale.
+
+- Redis restart và mất key cũng không sao: request trùng lọt xuống database và vẫn bị UNIQUE của cách 3 chặn. Tệ nhất là mất khả năng chặn sớm, không tạo ra đơn trùng.
+
+**Nhược điểm:**
+
+- Request đến **trong lúc order đang được ghi** nhận `409` (đang xử lý) thay vì order. Ở test của mình, 50 request cùng lúc thì có 4 request nhận 409, client phải retry sau một lúc mới lấy được order. Cách 3 và 4 không có vấn đề này vì request sau được database cho chờ.
+
+- Thêm Redis để vận hành và thêm một lượt gọi mạng cho mỗi request. Nếu chỉ có vài request trùng thì không đáng.
+
+- Key vẫn do client sinh nên không chống được bot đổi key.
 
 <p align="center">
   <img
@@ -443,11 +503,21 @@ public class TokenOrderService {
 }
 ```
 
-Token mang lại những thứ mà key do client sinh không có: bot **không tự bịa được token** (phải gọi API cấp token, nơi anh em đặt rate limit và kiểm tra user), token **gắn với user và giỏ hàng** nên bắt được replay sang tài khoản khác, và token **hết hạn** nên request cũ không phát lại mãi được.
+**Ưu điểm:**
 
-Đổi lại, request retry đến khi order **chưa kịp ghi xong** sẽ thấy token đã bị tiêu thụ mà chưa có order, nên nhận 400. Ở test của mình 50 request cùng lúc thì 16 request nhận lỗi này, và client cần retry sau đó là sẽ lấy được order. Nếu anh em không muốn client thấy lỗi này, hãy kết hợp với cách 4 để request đến sau được chờ.
+- Bot **không tự bịa được token**: phải gọi API cấp token, nơi anh em đặt rate limit và kiểm tra user. Đây là điều key do client sinh không làm được.
 
-Có một trường hợp nữa cần lưu ý: token đã bị tiêu thụ nhưng việc ghi order lại lỗi (ví dụ database tạm thời không truy cập được). Lúc này token đã mất và chưa có order nào, nên client retry với token cũ cũng nhận 400. Cách xử lý đơn giản là để client gọi lại API cấp token rồi đặt hàng lại. Vì chưa có order nào được tạo nên không có nguy cơ trùng.
+- Token **gắn với user và giỏ hàng** nên bắt được replay sang tài khoản khác, và **hết hạn** nên request cũ không phát lại mãi được.
+
+- `GETDEL` nguyên tử nên 50 request cùng token chỉ có đúng một request đi tiếp. Test cho đúng 1 order.
+
+**Nhược điểm:**
+
+- Request retry đến khi order **chưa kịp ghi xong** thấy token đã bị tiêu thụ mà chưa có order, nên nhận 400. Ở test của mình 50 request cùng lúc thì 16 request nhận lỗi này, client phải retry sau đó mới lấy được order. Nếu không muốn client thấy lỗi này, hãy kết hợp với cách 4 để request đến sau được chờ.
+
+- Token đã bị tiêu thụ nhưng việc ghi order lỗi (ví dụ database tạm thời không truy cập được) thì token mất mà chưa có order nào, client retry với token cũ cũng nhận 400. Cách xử lý đơn giản là gọi lại API cấp token rồi đặt hàng lại, và vì chưa có order nào được tạo nên không có nguy cơ trùng.
+
+- Thêm một endpoint cấp token, một lượt gọi mạng cho mỗi lần checkout và phụ thuộc Redis, nên đây là cách phức tạp nhất trong bài. Token một mình cũng không đủ chặn bot, vẫn cần rate limit (xem Note bên dưới).
 
 **Note**: Token chỉ là một lớp. Với bot, anh em vẫn nên kết hợp [rate limit](https://davidnguyenblog.vercel.app/blog/trien-khai-rate-limited-voi-hazelcast-va-spring-boot) và giới hạn nghiệp vụ như "mỗi user tối đa N sản phẩm flash sale" (kiểm tra ở tầng database, không phải ở tầng service). Còn với message redelivery từ queue, hãy dùng chính id của message làm idempotency key ở phía consumer, cùng cơ chế như cách 3 hoặc 4.
 
