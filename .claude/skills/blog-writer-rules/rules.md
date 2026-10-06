@@ -8,7 +8,7 @@ If the rule has a reviewer counterpart, update the matching R-xx in `blog-review
 - **W-02** Front matter fields, in this order: `title`, `date`, `lastmod`, `tags`, `draft`, `summary`, `images`, `layout`.
 - **W-03** `date` and `lastmod` are identical (`'YYYY-MM-DD'`, quoted). Never copy `lastmod` from another post.
 - **W-04** `draft: false` always, on every new post and every revision. Never set `draft: true`.
-- **W-05** `summary` is one paragraph that starts with "Trong bài viết này, mình sẽ cùng anh em tìm hiểu ...". It states the problem and what the reader gets.
+- **W-05** `summary` is one short paragraph. The opening is flexible: do not force "Trong bài viết này, ..."; vary it to fit the topic. It states the problem and what the reader gets. Strict limit: 2 sentences, at most 400 characters (about 4 lines on the post card). Do not list every approach or section. Model: the summary of `2025-09-26-how-to-build-an-ai-agent-with-n8n.mdx` (347 characters).
 - **W-06** `images: ['/static/img/cover/posts/<name>.png']` and `layout: PostLayout`. The cover is not created; list it in the to-do list.
 - **W-07** `tags`: technology tags (proper case, e.g. `Spring Boot`, `Redis`) plus exactly one lowercase category tag from: `spring-framework`, `java`, `devops`, `cloud`, `software-architecture`, `testing`. Reuse tags already used in `data/blog/` before inventing new ones.
 - **W-08** Title: use the brief's prefix (`[AWS] - `, `[AI] - `, ...) or none. 2025+ style favors a plain question or "Làm sao ...?" phrasing. Quote the title in YAML.
